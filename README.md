@@ -296,7 +296,7 @@ The tests run offline. They use temporary folders and a fake GitHub API, and nev
 - report rendering
 - full runs end to end against a fake GitHub, including baselines, incremental runs, ties, long gaps, history rewrites, uncertain 404s, failures on later pages, name collisions, checkpoint-save failures, empty repositories, and protection of human notes
 
-**Against the real GitHub API** (public repository `Gerico90/cafenorte-data-challenge`, no token; details in [`docs/mvp1-real-validation.md`](docs/mvp1-real-validation.md)):
+**Against the real GitHub API** (public repositories `Gerico90/cafenorte-data-challenge` and `Gerico90/organizador-personal`, no token; details in [`docs/mvp1-real-validation.md`](docs/mvp1-real-validation.md)):
 
 | Scenario | Result |
 |---|---|
@@ -304,10 +304,12 @@ The tests run offline. They use temporary folders and a fake GitHub API, and nev
 | Second run with no external changes | ✅ "No changes", no new report, checkpoint byte-identical |
 | Compare endpoint: pagination (5 per page), `ahead`, `behind`, `identical` | ✅ as designed |
 | Missing commit: compare → 404, commit lookup → 422 | ✅ as the rewrite check assumes |
+| Incremental run with a real new commit (`organizador-personal`) | ✅ only the new commit reported, previous head not repeated; checkpoint advanced to the new head |
+| Incremental run with a real newly opened issue (`organizador-personal`) | ✅ reported as opened; issue cursor advanced; no duplicate on the next run |
 
 **Not yet validated against the real API:**
-- incremental runs with real new commits, issues or pull requests
-- any real issue or pull request data (the test repository has none)
+- pull request detection (opened, merged, closed or updated)
+- real issues being closed or updated (only opening has been validated)
 - paging of the commit, issue and pull request lists
 - a full history-rewrite run
 - authenticated or private repositories
