@@ -183,8 +183,20 @@ def _load(path: Path, expected_id: str) -> Recommendation:
         raise DataError(f"Invalid recommendation {path}: {e}") from None
 
 
+def project_context_to_dict(c: ProjectContext) -> dict:
+    return {
+        "github_repo": c.github_repo,
+        "commit_sha": c.commit_sha,
+        "analyzed_at": c.analyzed_at,
+        "analyzed_files": list(c.analyzed_files),
+        "claims": [
+            {"topic": k.topic, "statement": k.statement, "basis": k.basis, "sources": list(k.sources)}
+            for k in c.claims
+        ],
+    }
+
+
 def _to_dict(r: Recommendation) -> dict:
-    c = r.project_context
     return {
         "schema_version": SCHEMA_VERSION,
         "id": r.id,
@@ -201,16 +213,7 @@ def _to_dict(r: Recommendation) -> dict:
         "sources": [
             {"name": s.name, "url": s.url, "evidence_urls": list(s.evidence_urls)} for s in r.sources
         ],
-        "project_context": {
-            "github_repo": c.github_repo,
-            "commit_sha": c.commit_sha,
-            "analyzed_at": c.analyzed_at,
-            "analyzed_files": list(c.analyzed_files),
-            "claims": [
-                {"topic": k.topic, "statement": k.statement, "basis": k.basis, "sources": list(k.sources)}
-                for k in c.claims
-            ],
-        },
+        "project_context": project_context_to_dict(r.project_context),
         "reconsiders": r.reconsiders,
     }
 
@@ -246,7 +249,7 @@ def _from_dict(data, expected_id: str) -> Recommendation:
     if reconsiders is not None:
         common.recommendation_id(reconsiders, "reconsiders")
 
-    context = _context(data["project_context"], created_at)
+    context = parse_project_context(data["project_context"], created_at)
 
     return Recommendation(
         id=rec_id,
@@ -276,40 +279,41 @@ def _source(data, name: str) -> Source:
     )
 
 
-def _context(data, created_at: str) -> ProjectContext:
-    common.check_keys(data, _CONTEXT_KEYS, (), "project_context.")
+def parse_project_context(data, created_at: str, name: str = "project_context") -> ProjectContext:
+    """Validate a project context object. Raises ValueError; `name` prefixes messages."""
+    common.check_keys(data, _CONTEXT_KEYS, (), f"{name}.")
 
     repo = data["github_repo"]
     if repo is not None:
-        owner, _, name = repo.partition("/") if isinstance(repo, str) else ("", "", "")
+        owner, _, repo_name = repo.partition("/") if isinstance(repo, str) else ("", "", "")
         if not (
             common.GITHUB_OWNER_RE.fullmatch(owner)
-            and common.GITHUB_REPO_RE.fullmatch(name)
-            and name not in {".", ".."}
+            and common.GITHUB_REPO_RE.fullmatch(repo_name)
+            and repo_name not in {".", ".."}
         ):
-            raise ValueError(f"project_context.github_repo {repo!r} must look like 'owner/repo'")
+            raise ValueError(f"{name}.github_repo {repo!r} must look like 'owner/repo'")
 
     sha = data["commit_sha"]
     if sha is not None and (not isinstance(sha, str) or not common.COMMIT_SHA_RE.fullmatch(sha)):
-        raise ValueError(f"project_context.commit_sha {sha!r} must be a lowercase hex commit SHA")
+        raise ValueError(f"{name}.commit_sha {sha!r} must be a lowercase hex commit SHA")
 
-    analyzed_at = common.optional_timestamp(data["analyzed_at"], "project_context.analyzed_at")
+    analyzed_at = common.optional_timestamp(data["analyzed_at"], f"{name}.analyzed_at")
     if analyzed_at is not None and common.parse_ts(analyzed_at) > common.parse_ts(created_at):
-        raise ValueError("project_context.analyzed_at is later than created_at")
+        raise ValueError(f"{name}.analyzed_at is later than created_at")
 
-    files = common.text_list(data["analyzed_files"], "project_context.analyzed_files")
-    common.no_duplicates(files, "project_context.analyzed_files")
+    files = common.text_list(data["analyzed_files"], f"{name}.analyzed_files")
+    common.no_duplicates(files, f"{name}.analyzed_files")
 
     claims = data["claims"]
     if not isinstance(claims, list):
-        raise ValueError("project_context.claims must be a list")
+        raise ValueError(f"{name}.claims must be a list")
 
     return ProjectContext(
         github_repo=repo,
         commit_sha=sha,
         analyzed_at=analyzed_at,
         analyzed_files=files,
-        claims=tuple(_claim(c, f"project_context.claims[{i}]") for i, c in enumerate(claims)),
+        claims=tuple(_claim(c, f"{name}.claims[{i}]") for i, c in enumerate(claims)),
     )
 
 
