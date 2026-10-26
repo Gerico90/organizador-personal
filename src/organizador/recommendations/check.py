@@ -30,7 +30,11 @@ def check_data(root: Path) -> list[str]:
 
 def _entries(root: Path, folder: str, suffix: str, id_re, problems: list[str]):
     """Yield (path, id) for well-named files; report everything else."""
-    directory = root / folder
+    try:
+        directory = common.data_folder(root, folder)
+    except DataError as e:
+        problems.append(str(e))
+        return
     if not directory.exists():
         return
     if not directory.is_dir():
@@ -38,6 +42,9 @@ def _entries(root: Path, folder: str, suffix: str, id_re, problems: list[str]):
         return
     for path in sorted(directory.iterdir()):
         stem = path.name[: -len(suffix)] if path.name.endswith(suffix) else None
+        if path.resolve() != path:
+            problems.append(f"Unexpected entry (link to another location): {path}")
+            continue
         if not path.is_file() or stem is None or not id_re.fullmatch(stem):
             problems.append(f"Unexpected entry: {path}")
             continue

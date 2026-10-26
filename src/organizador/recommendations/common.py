@@ -182,16 +182,30 @@ def no_duplicates(values: tuple, name: str) -> None:
 # --- paths and files -------------------------------------------------------
 
 
-def record_path(root: Path, folder: str, record_id: str, suffix: str) -> Path:
-    """`<root>/<folder>/<record_id><suffix>`, refusing anything that escapes the folder.
+def data_folder(root: Path, folder: str) -> Path:
+    """`<root>/<folder>`, refusing a folder that is a link (symlink or junction).
 
-    `record_id` must already be validated; this is a second line of defence
-    (for example against a folder that is a link to somewhere else).
+    The root itself is resolved once and trusted: it is chosen by the caller.
     """
-    directory = Path(root) / folder
+    directory = Path(root).resolve() / folder
+    if directory.resolve() != directory:
+        raise DataError(f"Unsafe folder {directory}: it is a link to another location")
+    return directory
+
+
+def record_path(root: Path, folder: str, record_id: str, suffix: str) -> Path:
+    """`<root>/<folder>/<record_id><suffix>`, refusing anything outside that folder.
+
+    `record_id` must already be validated; this is a second line of defence.
+    The folder and an existing file must not be links, so reads and writes
+    cannot be redirected outside the data root.
+    """
+    directory = data_folder(root, folder)
     path = directory / f"{record_id}{suffix}"
-    if path.parent.resolve() != directory.resolve() or path.name != f"{record_id}{suffix}":
+    if path.parent != directory or path.name != f"{record_id}{suffix}":
         raise DataError(f"Unsafe path for {record_id!r} in {directory}")
+    if os.path.lexists(path) and path.resolve() != path:
+        raise DataError(f"Unsafe file {path}: it is a link to another location")
     return path
 
 

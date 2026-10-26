@@ -160,14 +160,14 @@ def list_recommendations(root: Path, project_id: str) -> tuple[Recommendation, .
 
 
 def iter_recommendations(root: Path):
-    directory = Path(root) / RECOMMENDATIONS_DIR
+    directory = common.data_folder(root, RECOMMENDATIONS_DIR)
     if not directory.is_dir():
         return
     for path in sorted(directory.glob("*.json")):
         stem = path.name[: -len(".json")]
         if not common.RECOMMENDATION_ID_RE.fullmatch(stem):
             raise DataError(f"Unexpected file name in {directory}: {path.name}")
-        yield _load(path, stem)
+        yield _load(common.record_path(root, RECOMMENDATIONS_DIR, stem, ".json"), stem)
 
 
 def _random_suffix() -> str:

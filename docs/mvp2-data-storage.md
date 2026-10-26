@@ -148,6 +148,7 @@ Errors: `DataError` (invalid input or file), with subclasses `NotFoundError` (mi
 - Recommendations and references are created with exclusive create (`open(…, "x")`); an existing file is never opened for writing. A failed write removes the partial file.
 - The only rewrite is `last_reviewed_at`, done atomically with `fsutil.atomic_write_text`; on failure the old file stays.
 - Feedback is appended in binary mode and flushed to disk. If the write fails, only the partial new line is cut off.
+- Links are refused. If `references/`, `recommendations/` or `feedback/` is a symlink or a Windows junction, or a record file is a symlink (even a broken one), the operation raises `DataError` before reading or writing, and `check_data` reports it without following it. The data root itself may be given through a link; it is resolved once.
 - Reading is strict. Malformed JSON, invalid values, a file name that does not match its ID, an empty line, a missing final newline (interrupted write) or out-of-order feedback raise `DataError`. Nothing is skipped or repaired.
 - `check_data` reports every problem across the three folders (invalid files, unexpected files such as leftover temporary files, missing references, missing or cross-project reconsiderations, feedback for a missing recommendation) and changes nothing.
 
@@ -156,6 +157,7 @@ Errors: `DataError` (invalid input or file), with subclasses `NotFoundError` (mi
 ## 6. Limitations
 
 - No protection against two processes writing at the same time (single user, manual use).
+- The link check runs just before each read or write. A link created in the short moment between the check and the file access is not detected (same single-user assumption). Hard links are not detected.
 - Listing reads every recommendation file; fine for hundreds, not for very large numbers.
 - Non-GitHub URL normalization is deliberately light (see section 2).
 - `analyzed_files` and claim `sources` are free text; they are not checked against the project.
