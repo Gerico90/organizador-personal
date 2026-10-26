@@ -200,3 +200,43 @@ These scenarios were **not** exercised with real GitHub data in this step. The o
 ## 7. Conclusion
 
 Against the real GitHub API, the initial baseline, the checkpoint, and the no-change run behave as designed and match GitHub's data exactly. The compare endpoint behaves as the design assumes: it pages with `Link` headers, its counts are consistent, it returns `ahead`, `behind` and `identical` correctly, a missing base SHA returns 404, and a missing commit lookup returns 422. Incremental runs with real new activity, and anything involving issues or PRs, remain unverified against real data.
+
+---
+
+## 8. Incremental validation — Gerico90/organizador-personal
+
+Date: 2026-10-26 UTC
+Repository: [Gerico90/organizador-personal](https://github.com/Gerico90/organizador-personal) (public, default branch `main`)
+Authentication: none (`GITHUB_TOKEN` not set)
+Application code: unchanged
+Configuration: only `github.repo` changed; `initial_lookback_days = 15`. The CaféNorte checkpoint and report were preserved (SHA-256 unchanged).
+
+### 8.1 Baseline and no-change run
+
+| Run | Time (UTC) | Output | Exit |
+|---|---|---|---|
+| 1 | 16:27:39Z | Baseline report `2026-10-26T162739Z.md` — 1 commit, 0 pull requests, 0 issues | 0 |
+| 2 | 16:27:58Z | `No changes since 2026-10-26T16:27:39Z.` | 0 |
+
+Checked with `curl` against the API: default branch `main`, head `02278df`, 1 commit in the 15-day window (the repository's only commit), 0 issues, 0 pull requests. Run 2 left every file under `state/` and `vault/` identical (SHA-256 and modification time).
+
+### 8.2 Real issue detection
+
+Issue #1, "Validate real incremental GitHub activity detection", was created manually on GitHub at 16:32:16Z.
+
+| Run | Time (UTC) | Output | Exit |
+|---|---|---|---|
+| 3 | 16:33:00Z | Report `2026-10-26T163300Z.md` — 0 commits, 0 pull requests, 1 issue (1 opened) | 0 |
+| 4 | 16:33:13Z | `No changes since 2026-10-26T16:33:00Z.` | 0 |
+
+Checked against the API:
+- Issue #1 is classified as **opened**: it is open, has no `closed_at`, and was created after the previous checkpoint.
+- The report period is 16:27:39Z → 16:33:00Z.
+- `issues_cursor` advanced to `{ts: 16:32:16Z, ids: [1]}`.
+- `pulls_cursor` and `last_head_sha` did not change.
+- Run 4 created no report and left the checkpoint identical.
+
+### 8.3 Pending
+
+- Incremental commit detection: the commit that adds this section is the test commit.
+- Still not verified with real data: closed and updated issues, pull requests, and pagination of the list endpoints.
