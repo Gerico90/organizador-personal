@@ -1,0 +1,12 @@
+# Copy this file to config/config.toml and edit it.
+# config/config.toml is git-ignored.
+# Never put tokens here. The GitHub token is read from the GITHUB_TOKEN environment variable.
+
+# Paths are relative to the project folder.
+vault_path = "vault"   # This project's own new vault. Do not point it at an existing personal vault.
+state_path = "state"
+
+[github]
+owner = "OWNER"        # placeholder
+repo = "REPO"          # placeholder
+initial_lookback_days = 15   # first run only; later runs start from the saved checkpoint

@@ -1,0 +1,24 @@
+# Local configuration (may contain personal paths). Only the example is committed.
+config/config.toml
+
+# Operational state (machine-owned)
+state/
+
+# Markdown vault (personal knowledge and generated reports)
+vault/
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/

@@ -1,0 +1,202 @@
+# MVP 1 — Real GitHub Validation (Step 8A)
+
+Date: 2026-10-25 (local, UTC−6) / 2026-10-26 UTC
+Repository: [Gerico90/cafenorte-data-challenge](https://github.com/Gerico90/cafenorte-data-challenge) (public, default branch `master`)
+Authentication: none (`GITHUB_TOKEN` not set)
+Python: 3.11.0, project virtual environment, run from the project folder (not `C:\`)
+Application code: unchanged during this step
+
+---
+
+## 1. Setup
+
+| Check | Result |
+|---|---|
+| Existing checkpoint before the first run | None (`state/` empty) |
+| Existing reports before the first run | None (`vault/` empty except empty folders) |
+| `config/config.toml` | Created (git-ignored): owner `Gerico90`, repo `cafenorte-data-challenge`, `vault_path = "vault"`, `state_path = "state"`, `initial_lookback_days = 45` |
+| Program default lookback | Unchanged at 15 (`config.py`, `DEFAULT_LOOKBACK_DAYS`) |
+
+The 45-day lookback was used for this validation only. It affects only the first run; now that a checkpoint exists, later runs ignore it.
+
+---
+
+## 2. Run 1 — initial baseline (real API)
+
+```
+> python -m organizador github run
+Baseline report written: C:\proyectos\Organizador de proyectos\vault\reports\github\Gerico90__cafenorte-data-challenge\2026-10-26T021927Z.md
+  14 commits, 0 pull requests, 0 issues
+exit=0
+```
+
+### Generated report
+
+`vault/reports/github/Gerico90__cafenorte-data-challenge/2026-10-26T021927Z.md`:
+
+```markdown
+---
+source: "github"
+repo: "Gerico90/cafenorte-data-challenge"
+branch: "master"
+period_from: "2026-09-11T02:19:27Z"
+period_to: "2026-10-26T02:19:27Z"
+generated_at: "2026-10-26T02:19:27Z"
+generated_by: "organizador"
+baseline: true
+commits_status: "baseline"
+previous_head: null
+head_sha: "f0fab30cb175b48463868732472d8a6f6de7b096"
+---
+
+# Gerico90/cafenorte-data-challenge — initial baseline 2026-09-11 → 2026-10-26
+
+Period: 2026-09-11 02:19 UTC → 2026-10-26 02:19 UTC
+
+> **Initial baseline.** This is the first report for this repository. It lists activity in the period above, not changes since a previous report.
+
+14 commits · 0 pull requests · 0 issues
+
+## Commits on master
+
+- [`f0fab30`](https://github.com/Gerico90/cafenorte-data-challenge/commit/f0fab30cb175b48463868732472d8a6f6de7b096) Update README.md — @Gerico90, 2026-09-18
+- [`b9d553e`](…/commit/b9d553ec2663b0982463efde7d70229a7f1f9a47) Update README.md — @Gerico90, 2026-09-18
+- [`60d6506`](…/commit/60d650638431975f4eacc8069cfe72bd3ca5e902) Update aws\_proposal.md — @Gerico90, 2026-09-18
+- [`65c5ab2`](…/commit/65c5ab27c2cfcc1ebe80dc217732883ea6123863) Update AI\_LOG.md — @Gerico90, 2026-09-18
+- [`cb0927b`](…/commit/cb0927bc36be6ff6cf44e458d8435418b22700df) Translate README documentation to Spanish — @Gerico90, 2026-09-18
+- [`84a7435`](…/commit/84a7435e7d659b24b81d81e3c8103021e7ee829e) Finalize business analysis and AWS proposal — @Gerico90, 2026-09-18
+- [`512e92e`](…/commit/512e92e9ad3e931a873defa4896b8fef999024b1) Complete CaféNorte data challenge solution — @Gerico90, 2026-09-18
+- [`57eb1dc`](…/commit/57eb1dcf0f7e41d18d53d976cf1069bd7d53a585) Implement and test stockout analysis — @Gerico90, 2026-09-17
+- [`2369624`](…/commit/23696243bfdb82ae07ecc32d27a18ad8347a30c9) Implement and test inventory turnover question — @Gerico90, 2026-09-17
+- [`e9584e6`](…/commit/e9584e63ab720ad7f17d1361f3ed98dbaba65ced) Add reconciliation and transformation tests — @Gerico90, 2026-09-17
+- [`500edf1`](…/commit/500edf133744d68b9b10a4b2739c2a4bce9f7112) Build and document local analytical pipeline — @Gerico90, 2026-09-17
+- [`ae0816f`](…/commit/ae0816f66da2f2991239948974df0b832bbd33bb) Document validated product reconciliation strategy — @Gerico90, 2026-09-17
+- [`ec54f36`](…/commit/ec54f36147dcf75160f4c0423e0808ce9deb80c0) Validate source discovery findings — @Gerico90, 2026-09-17
+- [`c1acfc7`](…/commit/c1acfc7aa340076ce52375cfbf71fd3ebd6e7cdc) Initialize technical challenge repository — @Gerico90, 2026-09-16
+
+## Pull requests
+
+_No pull request activity._
+
+## Issues
+
+_No issue activity._
+```
+
+(Links shortened here with `…`; the file has full `https://github.com/Gerico90/cafenorte-data-challenge/commit/<sha>` URLs.)
+
+### Saved checkpoint
+
+`state/github/Gerico90__cafenorte-data-challenge.json`:
+
+```json
+{
+  "repo": "Gerico90/cafenorte-data-challenge",
+  "default_branch": "master",
+  "last_head_sha": "f0fab30cb175b48463868732472d8a6f6de7b096",
+  "issues_cursor": { "ts": "2026-09-11T02:19:27Z", "ids": [] },
+  "pulls_cursor":  { "ts": "2026-09-11T02:19:27Z", "ids": [] },
+  "last_success_at": "2026-10-26T02:19:27Z",
+  "last_report": "reports/github/Gerico90__cafenorte-data-challenge/2026-10-26T021927Z.md"
+}
+```
+
+### Comparison with GitHub data
+
+Checked with `curl` directly against the API (independent of the program's client), right after run 1.
+
+| Item | GitHub (curl) | Report / checkpoint | Match |
+|---|---|---|---|
+| Visibility | public | — | ✅ |
+| Default branch | `master` | `branch: "master"`, `default_branch: "master"` | ✅ |
+| Head of `master` | `f0fab30cb175…b096` | `head_sha`, `last_head_sha` | ✅ |
+| Commits on `master` | 14 (single page, no `Link` header) | 14 listed | ✅ |
+| Commit SHAs, order, first-line messages | 14 entries, newest first | identical | ✅ |
+| Authors | all `Gerico90` | all `@Gerico90` | ✅ |
+| Dates | 2026-09-16 … 2026-09-18 (author = committer dates) | same dates | ✅ |
+| Latest commit | 2026-09-18T23:17:15Z (matches the user's "September 18, 2026") | `f0fab30`, 2026-09-18 | ✅ |
+| Oldest commit inside the 45-day window? | 2026-09-16T23:12:06Z > window start 2026-09-11T02:19:27Z | all 14 included | ✅ |
+| Issues (`state=all`, includes PRs) | 0 | 0, cursor = window start, `ids: []` | ✅ |
+| Pull requests (`state=all`) | 0 | 0, cursor = window start, `ids: []` | ✅ |
+| Non-ASCII text | `CaféNorte` | written as UTF-8 `CaféNorte` | ✅ |
+| Checkpoint ↔ report | — | `last_report` points to the file; `head_sha`, `generated_at` = `last_success_at`, `branch`, `repo` agree | ✅ |
+
+---
+
+## 3. Run 2 — no changes (real API)
+
+No external changes were made to the repository between runs.
+
+```
+> python -m organizador github run
+No changes since 2026-10-26T02:19:27Z.
+exit=0
+```
+
+| Check | Result |
+|---|---|
+| Exit code | 0 ✅ |
+| New report file | none (still only `2026-10-26T021927Z.md`) ✅ |
+| State file | byte-identical (`cmp`), same size and modification time ✅ |
+| Compare call | not made (head unchanged), as designed ✅ |
+
+---
+
+## 4. Real compare endpoint (read-only, separate from runs)
+
+Script: the program's own `GitHubClient.iter_compare` and `changes.commits_from_compare`, without loading or saving state and without touching the vault. Historical SHAs from `master`:
+`FIRST = c1acfc7…` (oldest), `MID = 57eb1dc…`, `HEAD = f0fab30…`, plus a well-formed SHA that does not exist (`0123456789abcdef…`).
+
+| # | Request | Result | Matches design |
+|---|---|---|---|
+| 1 | `FIRST...HEAD`, 5 per page (forced) | 3 pages, `Link rel="next"` on pages 1–2 only; `status: ahead`, `total_commits: 13`, `ahead_by: 13`; 13 unique commits, `FIRST` excluded, `HEAD` last (oldest first); `commits_from_compare` → `incremental`, 13 commits, newest first | ✅ compare pagination works and the count check passes |
+| 2 | `FIRST...HEAD`, 100 per page (production) | 1 page; same 13 commits in the same order as the paginated run | ✅ |
+| 3 | `MID...HEAD` | `incremental`, 7 commits (`f0fab30` … `512e92e`) — exactly the commits after `57eb1dc` | ✅ |
+| 4 | `HEAD...FIRST` | `status: behind` → `history_rewritten`, no commits listed | ✅ |
+| 5 | `HEAD...HEAD` | `status: identical` → `incremental`, 0 commits | ✅ |
+| 6 | `MISSING...HEAD` | HTTP 404 → `GitHubNotFoundError` | ✅ assumption of §3.4a holds |
+| 7 | `GET /commits/MISSING` | HTTP 422 (not 404) → `GitHubError(status=422)` | ✅ the 404-or-422 rule is needed; 422 is what GitHub actually returns |
+
+**New fact:** GitHub's `next` links for compare pages 2–3 use the repository-ID path `https://api.github.com/repositories/1375489202/compare/...` instead of `/repos/Gerico90/cafenorte-data-challenge/...`. The client trusts any `https://api.github.com` URL, so they were followed correctly. A stricter path-based trust rule would have broken pagination.
+
+After all checks the files under `state/` and `vault/` were exactly the two from run 1.
+
+---
+
+## 5. Discrepancies
+
+None between the program's output and GitHub's data.
+
+Observations (not errors):
+- Report dates are UTC by design. The run was on 2026-10-25 local time (UTC−6), so the report name and period end show 2026-10-26.
+- Markdown escaping makes raw file text noisier (`aws\_proposal.md`); it renders correctly.
+- Rate-limit counter: GitHub reported 55/60 remaining after run 1 + 5 curl requests, and 53/60 at the end. These numbers do not add up to the requests made (~25 in total). The likely cause is the hourly window resetting during the test, but this was not verified.
+
+---
+
+## 6. Not tested against the real API
+
+These scenarios were **not** exercised with real GitHub data in this step. The offline test suite covers them with a fake API unless noted.
+
+| Scenario | Why not tested here |
+|---|---|
+| Incremental run with new commits, issues, or PRs | No external changes were made (instructed not to modify the repository) |
+| Real issue and pull request data (shapes, classification, cursor advance, ties) | Repository has 0 issues and 0 PRs |
+| Pagination of commits, issues, and pulls listings | All results fit in one page; only compare pagination was verified |
+| Full CLI flow for a history rewrite (warning report, exit 2) | Requires a force-push; compare `behind` and the 404/422 responses were verified separately (§4) |
+| Full CLI flow for a compare 404 with a confirmed missing commit | Requires a rewritten history; building blocks verified separately (§4) |
+| Authenticated requests, private repositories | No token, by instruction |
+| Rate-limit responses (403/429) | Not triggered |
+| Server errors (5xx), timeouts, network failures | Not triggered |
+| Branch names containing `/` | Default branch is `master` |
+| Empty repository (409 / branch 404) | Not available |
+| Renamed or transferred repository (3xx) | Not available |
+| Default branch change | Not available |
+| Report name collision, state-save failure | Local filesystem cases; covered offline only |
+| Running from `C:\` | Known environment problem (loose Python 3.12 modules in `C:\`); runs were made from the project folder as instructed |
+
+---
+
+## 7. Conclusion
+
+Against the real GitHub API, the initial baseline, the checkpoint, and the no-change run behave as designed and match GitHub's data exactly. The compare endpoint behaves as the design assumes: it pages with `Link` headers, its counts are consistent, it returns `ahead`, `behind` and `identical` correctly, a missing base SHA returns 404, and a missing commit lookup returns 422. Incremental runs with real new activity, and anything involving issues or PRs, remain unverified against real data.
