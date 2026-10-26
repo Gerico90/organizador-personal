@@ -6,6 +6,8 @@ Each run reads commits, issues and pull requests from the GitHub REST API (read-
 
 This is MVP 1. Design: [`docs/mvp1-architecture-proposal.md`](docs/mvp1-architecture-proposal.md). Real-API results: [`docs/mvp1-real-validation.md`](docs/mvp1-real-validation.md).
 
+MVP 2 (in progress) adds local storage for project recommendations and personal feedback. Step 1 is storage and validation only, with no CLI yet: [`docs/mvp2-data-storage.md`](docs/mvp2-data-storage.md). Its data lives in `data/`, which is git-ignored.
+
 ---
 
 ## What it does
@@ -285,13 +287,13 @@ If the repository's **default branch itself changes** (for example, `master` to 
 .venv\Scripts\python -m pytest -q
 ```
 
-The tests run offline. They use temporary folders and a fake GitHub API, and never touch `vault/` or `state/`.
+The tests run offline. They use temporary folders and a fake GitHub API, and never touch `vault/`, `state/` or `data/`.
 
 ---
 
 ## Validation status
 
-**Offline:** 310 tests pass. They cover:
+**Offline:** 529 tests pass: 310 for MVP 1 and 219 for the MVP 2 data storage ([`docs/mvp2-data-storage.md`](docs/mvp2-data-storage.md)). The MVP 1 tests cover:
 - configuration, file safety, checkpoints, the API client and change detection
 - report rendering
 - full runs end to end against a fake GitHub, including baselines, incremental runs, ties, long gaps, history rewrites, uncertain 404s, failures on later pages, name collisions, checkpoint-save failures, empty repositories, and protection of human notes

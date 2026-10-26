@@ -7,6 +7,9 @@ state/
 # Markdown vault (personal knowledge and generated reports)
 vault/
 
+# Local recommendation data: references, recommendations, personal feedback
+data/
+
 # Secrets
 .env
 .env.*
