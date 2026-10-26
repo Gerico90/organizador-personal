@@ -46,7 +46,7 @@ def evidence(**overrides) -> dict:
     return data
 
 
-def make_profile(root, monkeypatch, now=T0, suffix="0000000a", ev=None):
+def make_profile(root, monkeypatch, now=T0, suffix="0000000a", ev=None, claims=None):
     monkeypatch.setattr(profile_module, "_random_suffix", lambda: suffix)
     draft = {
         "project_id": "demo-project",
@@ -55,7 +55,7 @@ def make_profile(root, monkeypatch, now=T0, suffix="0000000a", ev=None):
             "commit_sha": SHA,
             "analyzed_at": "2026-10-27T09:30:00Z",
             "analyzed_files": ["README.md", "src/app.py", "note:demo-project.md"],
-            "claims": copy.deepcopy(PROFILE_CLAIMS),
+            "claims": copy.deepcopy(PROFILE_CLAIMS if claims is None else claims),
         },
     }
     return create_profile(root, draft, ev or evidence(), now=now)

@@ -125,3 +125,10 @@ def test_same_category_needs_some_shared_wording():
     some = proposal(category="Testing", proposal="Add tests that generate random cases for the cursor.")
     [found] = overlap_candidates(some, [EXISTING])
     assert found["reasons"][0].startswith("same category")
+
+
+def test_uncommitted_changes_make_the_brief_profile_not_current(tmp_path, cycle, monkeypatch):
+    make_profile(tmp_path, monkeypatch)
+    profile = build_brief(tmp_path, cycle, evidence(working_tree_clean=False), now=T1)["profile"]
+    assert profile["current"] is False
+    assert profile["stale_reasons"] == ["the project has uncommitted changes to tracked files that its commit does not describe"]

@@ -92,6 +92,7 @@ Also recorded: `commit_sha` (`HEAD`), `working_tree_clean` (tracked files only),
 
 - the project or GitHub repository differs;
 - the commit differs;
+- tracked files have uncommitted changes now, or had them when the profile was made (`inputs.working_tree_clean`): in either case the commit does not describe what is or was analyzed. Untracked files do not count;
 - a context note was added, removed or changed since the profile was made (notes can change without a commit);
 - the profile has no `notes_sha256` at all. Profiles saved before this field existed still load, but are never treated as current.
 

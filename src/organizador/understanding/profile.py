@@ -188,7 +188,8 @@ def profile_freshness(profile: Profile, evidence: dict) -> list[str]:
     """Reasons why `profile` no longer describes the project. Empty means current.
 
     Compares with a freshly collected evidence index: project, repository,
-    commit, and the context note (added, removed or changed). A profile
+    commit, uncommitted changes to tracked files (now, or when the profile was
+    made), and the context note (added, removed or changed). A profile
     without a note fingerprint is never current.
     """
     reasons = []
@@ -201,6 +202,11 @@ def profile_freshness(profile: Profile, evidence: dict) -> list[str]:
             f"the project is at commit {evidence['commit_sha'][:7]}, the profile describes "
             f"{(profile.context.commit_sha or 'no commit')[:7]}"
         )
+    # A commit only describes the project when no tracked file differs from it.
+    if not evidence["working_tree_clean"]:
+        reasons.append("the project has uncommitted changes to tracked files that its commit does not describe")
+    if not profile.inputs.working_tree_clean:
+        reasons.append("the profile was made from uncommitted changes that its commit does not describe")
     recorded = profile.inputs.notes_sha256
     current = {e["ref"]: e["sha256"] for e in evidence["notes"]}
     if recorded is None:

@@ -386,3 +386,23 @@ def test_list_profiles(tmp_path, monkeypatch):
     (tmp_path / "profiles" / "notes.json").write_text("{}", encoding="utf-8")
     with pytest.raises(DataError, match="Unexpected file name"):
         list_profiles(tmp_path, "demo-project")
+
+
+# --- uncommitted changes ---------------------------------------------------
+
+
+def test_uncommitted_changes_now_make_the_profile_not_current(tmp_path, fixed_suffix):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    assert profile_freshness(profile, evidence(working_tree_clean=False)) == [
+        "the project has uncommitted changes to tracked files that its commit does not describe"
+    ]
+
+
+def test_profile_made_from_uncommitted_changes_is_not_current(tmp_path, fixed_suffix):
+    profile = create_profile(tmp_path, make_draft(), evidence(working_tree_clean=False), now=NOW)
+    assert profile.inputs.working_tree_clean is False
+    # Even after the changes are gone, the commit never described what was analyzed.
+    assert profile_freshness(profile, evidence()) == [
+        "the profile was made from uncommitted changes that its commit does not describe"
+    ]
+    assert len(profile_freshness(profile, evidence(working_tree_clean=False))) == 2

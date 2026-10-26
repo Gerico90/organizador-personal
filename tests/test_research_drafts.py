@@ -292,45 +292,193 @@ def test_two_similar_proposals_in_one_draft(env):
     assert problems(env, shared_reference_only) == ""
 
 
-def test_reconsideration_rules(env):
+def reconsider_setup(env, decision=None, rating=None):
+    """An existing recommendation using DOC_URL and profile claim 4, with optional feedback."""
     root, _, cycle = env
     old = existing_rec(root, sources=[{"name": "Tool documentation", "url": DOC_URL, "evidence_urls": [DOC_URL]}])
-    append_feedback(root, old.id, rating="like", decision="future", now=T0)
+    if decision is not None:
+        append_feedback(root, old.id, rating=rating, decision=decision, now=T0)
+    add_snapshot(root, cycle, OTHER_URL, OTHER_HTML)
+    return old
+
+
+def reconsideration(old, evidence=False, context=False):
+    """A reconsideration of `old` with new evidence (a new verified URL), an extra claim, or neither.
+
+    `context=True` adds profile claim 5, which the original did not use but which
+    already existed when the user decided: that is not a change of context.
+    """
+    rec = research_recommendation(reconsiders=old.id, new_since="something changed")
+    if evidence:
+        rec["sources"] = rec["sources"] + [{"name": "Guide", "url": OTHER_URL, "evidence_urls": [OTHER_URL]}]
+        rec["verified"] = verified() + verified(quote="models a system as a sequence of operations", url=OTHER_URL)
+    if context:
+        rec["profile_claims"] = [4, 5]
+    return rec
+
+
+@pytest.mark.parametrize(
+    "decision, evidence, context, message",
+    [
+        # Not evaluated or pending: never reconsidered, whatever is new.
+        (None, True, True, "has not been evaluated yet"),
+        ("pending", True, True, "is pending evaluation"),
+        # Future: only a change in project context counts; a claim that already
+        # existed when the user decided is not one (see the tests below).
+        ("future", True, False, "only when the project context changed"),
+        ("future", False, False, "only when the project context changed"),
+        ("future", False, True, "only when the project context changed"),
+        ("future", True, True, "only when the project context changed"),
+        # Explore: distinct follow-ups instead of reconsiderations.
+        ("explore", True, True, "propose a clearly distinct follow-up"),
+        # Discard: new evidence or new context.
+        ("discard", False, False, "was discarded"),
+        ("discard", True, False, None),
+        ("discard", False, True, "was discarded"),
+    ],
+)
+def test_reconsideration_follows_the_latest_decision(env, decision, evidence, context, message):
+    old = reconsider_setup(env, decision)
+    found = problems(env, draft_for(env, [reconsideration(old, evidence, context)]))
+    if message is None:
+        assert found == ""
+    else:
+        assert message in found
+
+
+@pytest.mark.parametrize(
+    "rating, decision, evidence, context, allowed",
+    [
+        ("like", "discard", False, False, False),  # a like does not make a discard reconsiderable
+        ("dislike", "future", True, False, False),  # a dislike does not make new evidence enough for "future"
+        ("like", "pending", True, True, False),
+        ("dislike", "explore", True, True, False),
+    ],
+)
+def test_rating_does_not_change_the_rule(env, rating, decision, evidence, context, allowed):
+    old = reconsider_setup(env, decision, rating)
+    found = problems(env, draft_for(env, [reconsideration(old, evidence, context)]))
+    assert (found == "") is allowed
+
+
+def test_only_the_latest_decision_counts(env):
+    root, _, _ = env
+    old = reconsider_setup(env, "discard")
+    append_feedback(root, old.id, rating=None, decision="pending", now=T1)
+    assert "is pending evaluation" in problems(env, draft_for(env, [reconsideration(old, True, True)]))
+
+
+def test_future_needs_context_that_changed_after_the_decision(env):
+    """The reported example: claims 3, 5 and 8 exist; the original uses 3 and 5; the user
+    marks it 'future'; a reconsideration citing claim 8, which already existed, is refused.
+    (Here the profile's claims 3, 5 and 4 play those roles.)"""
+    root, profile, cycle = env
+    claims = profile.context.claims
+    context = dict(stored_recommendation()["project_context"])
+    context["claims"] = [
+        {"topic": c.topic, "statement": c.statement, "basis": c.basis, "sources": list(c.sources)}
+        for c in (claims[2], claims[4])
+    ]
+    old = create_recommendation(root, stored_recommendation(project_context=context), now=T0)
+    append_feedback(root, old.id, rating=None, decision="future", now=T0)
+
+    rec = research_recommendation(
+        title="Revisit cursor testing",
+        proposal="Revisit the earlier idea for the planned scheduled runs.",
+        reconsiders=old.id,
+        new_since="the same-second limit",
+        profile_claims=[3, 4],  # claim 4 was not used by the original, but existed before the decision
+    )
+    assert "only when the project context changed" in problems(env, draft_for(env, [rec]))
+
+
+def changed_profile(env, monkeypatch, claims):
+    """A newer profile, created after the decision, that is current for the project."""
+    root, _, _ = env
+    return make_profile(root, monkeypatch, now=T1, suffix="0000000b", claims=claims)
+
+
+def test_future_reconsideration_with_a_claim_added_after_the_decision(env, monkeypatch):
+    old = reconsider_setup(env, "future")
+    newer = changed_profile(env, monkeypatch, PROFILE_CLAIMS + [{"topic": "objective", "statement": "Scheduled runs start next month.", "basis": "observed", "sources": ["note:demo-project.md:3"]}])
+    rec = research_recommendation(reconsiders=old.id, new_since="scheduled runs are now planned", profile_claims=[4, 7])
+    _, _, cycle = env
+    assert problems(env, research_draft(cycle, newer.id, [rec])) == ""
+
+
+def test_future_reconsideration_with_a_claim_whose_basis_changed(env, monkeypatch):
+    old = reconsider_setup(env, "future")
+    claims = [dict(c) for c in PROFILE_CLAIMS]
+    claims[5] = {
+        "topic": "objective",
+        "statement": "A timeline is not documented in the inspected sources.",
+        "basis": "observed",
+        "sources": ["README.md:20"],
+    }
+    newer = changed_profile(env, monkeypatch, claims)
+    # Same statement, but it was 'missing' when the user decided and is observed now.
+    rec = research_recommendation(reconsiders=old.id, new_since="a timeline is now documented", profile_claims=[4, 6])
+    _, _, cycle = env
+    assert problems(env, research_draft(cycle, newer.id, [rec])) == ""
+
+
+def test_regenerated_but_unchanged_profile_is_not_a_context_change(env, monkeypatch):
+    old = reconsider_setup(env, "future")
+    newer = changed_profile(env, monkeypatch, PROFILE_CLAIMS)
+    rec = research_recommendation(reconsiders=old.id, new_since="regenerated profile", profile_claims=[4, 5])
+    _, _, cycle = env
+    assert "only when the project context changed" in problems(env, research_draft(cycle, newer.id, [rec]))
+
+
+def test_context_before_any_profile_cannot_be_established(env, monkeypatch):
+    """A decision recorded before any stored profile existed: no change is assumed."""
+    root, _, cycle = env
+    context = dict(stored_recommendation()["project_context"], analyzed_at=None)
+    early = create_recommendation(root, stored_recommendation(project_context=context), now=T0.replace(hour=9))
+    append_feedback(root, early.id, rating=None, decision="future", now=T0.replace(hour=9, minute=45))
+    newer = changed_profile(env, monkeypatch, PROFILE_CLAIMS + [{"topic": "objective", "statement": "Scheduled runs start next month.", "basis": "observed", "sources": ["note:demo-project.md:3"]}])
+    rec = research_recommendation(reconsiders=early.id, new_since="scheduled runs are now planned", profile_claims=[4, 7])
+    assert "only when the project context changed" in problems(env, research_draft(cycle, newer.id, [rec]))
+
+
+def test_discard_reconsideration_with_context_changed_after_the_decision(env, monkeypatch):
+    old = reconsider_setup(env, "discard")
+    newer = changed_profile(env, monkeypatch, PROFILE_CLAIMS + [{"topic": "objective", "statement": "Scheduled runs start next month.", "basis": "observed", "sources": ["note:demo-project.md:3"]}])
+    rec = research_recommendation(reconsiders=old.id, new_since="scheduled runs are now planned", profile_claims=[4, 7])
+    _, _, cycle = env
+    assert problems(env, research_draft(cycle, newer.id, [rec])) == ""
+
+
+def test_explored_recommendation_accepts_a_distinct_follow_up(env):
+    old = reconsider_setup(env, "explore", "like")
+    follow_up = research_recommendation(
+        title="Stateful tests for the checkpoint",
+        proposal="Model runs as sequences of operations and check checkpoint invariants after each step.",
+        distinct_from=[{"id": old.id, "reason": "follow-up on sequences of runs, not timestamp ties"}],
+    )
+    assert problems(env, draft_for(env, [follow_up])) == ""
+
+
+def test_saved_reconsideration_keeps_the_original_and_its_feedback(env):
+    root, _, _ = env
+    old = reconsider_setup(env, "discard", "dislike")
     original_bytes = (root / "recommendations" / f"{old.id}.json").read_bytes()
     feedback_bytes = (root / "feedback" / f"{old.id}.jsonl").read_bytes()
 
-    no_note = research_recommendation(reconsiders=old.id)
-    assert "needs new_since" in problems(env, draft_for(env, [no_note]))
-
-    nothing_new = research_recommendation(reconsiders=old.id, new_since="looked again")
-    assert "needs new evidence" in problems(env, draft_for(env, [nothing_new]))
-
-    add_snapshot(root, cycle, OTHER_URL, OTHER_HTML)
-    with_new_evidence = research_recommendation(
-        reconsiders=old.id,
-        new_since="a guide on stateful testing was found",
-        sources=[
-            {"name": "Tool documentation", "url": DOC_URL, "evidence_urls": [DOC_URL]},
-            {"name": "Guide", "url": OTHER_URL, "evidence_urls": [OTHER_URL]},
-        ],
-        verified=verified() + verified(quote="models a system as a sequence of operations", url=OTHER_URL),
-    )
-    draft = draft_for(env, [with_new_evidence])
-    assert problems(env, draft) == ""
+    draft = draft_for(env, [reconsideration(old, evidence=True)])
     [rec_id] = save_research_draft(root, draft, evidence(), now=T1)["recommendations"]
     rec = load_recommendation(root, rec_id)
     assert rec.reconsiders == old.id
-    assert rec.justification.splitlines()[-1] == "New since 2026-10-27T10:00:00Z: a guide on stateful testing was found"
-    # The original recommendation and its feedback are untouched.
+    assert rec.justification.splitlines()[-1] == "New since 2026-10-27T10:00:00Z: something changed"
     assert (root / "recommendations" / f"{old.id}.json").read_bytes() == original_bytes
     assert (root / "feedback" / f"{old.id}.jsonl").read_bytes() == feedback_bytes
 
 
-def test_new_context_also_justifies_a_reconsideration(env):
-    root, _, _ = env
-    old = existing_rec(root, sources=[{"name": "Tool documentation", "url": DOC_URL, "evidence_urls": [DOC_URL]}])
-    rec = research_recommendation(reconsiders=old.id, new_since="the note now plans scheduled runs", profile_claims=[4, 5])
-    assert problems(env, draft_for(env, [rec])) == ""
+def test_reconsideration_needs_new_since(env):
+    old = reconsider_setup(env, "discard")
+    rec = reconsideration(old, evidence=True)
+    del rec["new_since"]
+    assert "needs new_since" in problems(env, draft_for(env, [rec]))
 
 
 def test_new_since_only_for_reconsiderations_and_same_project(env):
@@ -347,3 +495,8 @@ def test_cycle_and_project_must_match(env):
     root, profile, _ = env
     other_cycle = start_cycle(root, "other-project", now=T0)
     assert "does not match the cycle" in problems(env, research_draft(other_cycle, profile.id))
+
+
+def test_draft_is_refused_while_the_project_has_uncommitted_changes(env):
+    found = problems(env, draft_for(env), evidence(working_tree_clean=False))
+    assert "is not current: the project has uncommitted changes" in found

@@ -100,3 +100,22 @@ def test_check_reports_problems_and_bad_drafts(tmp_path, capsys):
     path.write_text("{oops", encoding="utf-8")
     assert main(["check", "--data-root", str(data), "--draft", str(path), *project_args(repo, vault)]) == 1
     assert "cannot read draft" in capsys.readouterr().err
+
+
+def test_brief_stops_when_tracked_files_have_uncommitted_changes(tmp_path, capsys):
+    repo, vault, data, profile = setup_project(tmp_path)
+    with open(repo / "README.md", "a", encoding="utf-8") as f:
+        f.write("local edit\n")
+    assert main(["start", "--data-root", str(data), "--project-id", "demo-project"]) == 0
+    cycle = capsys.readouterr().out.strip()
+    assert main(["brief", "--data-root", str(data), "--cycle-id", cycle, *project_args(repo, vault)]) == 1
+    assert "uncommitted changes to tracked files" in capsys.readouterr().out
+
+
+def test_untracked_files_do_not_make_the_profile_stale(tmp_path, capsys):
+    repo, vault, data, profile = setup_project(tmp_path)
+    (repo / "scratch.txt").write_text("not tracked\n", encoding="utf-8")
+    assert main(["start", "--data-root", str(data), "--project-id", "demo-project"]) == 0
+    cycle = capsys.readouterr().out.strip()
+    assert main(["brief", "--data-root", str(data), "--cycle-id", cycle, *project_args(repo, vault)]) == 0
+    assert f"Profile {profile.id} is current" in capsys.readouterr().out

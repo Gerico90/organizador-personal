@@ -70,7 +70,7 @@ from organizador.recommendations.references import (
 )
 from organizador.research.brief import overlap_candidates
 from organizador.research.snapshots import list_snapshots, load_cycle, quote_problem
-from organizador.understanding.profile import load_profile, profile_freshness
+from organizador.understanding.profile import list_profiles, load_profile, profile_freshness
 
 MAX_RECOMMENDATIONS = 3
 MAX_WEB_SEARCHES = 8
@@ -250,6 +250,55 @@ def _check_log(log) -> list[str]:
     return problems
 
 
+def _reconsideration_problem(decision: str | None, new_evidence: bool, new_context: bool) -> str | None:
+    """Why the latest decision does not allow this reconsideration, or None.
+
+    Follows the /project-research rules: an unevaluated or pending
+    recommendation is not reconsidered; "future" needs changed project
+    context (new evidence alone is not enough); "explore" takes distinct
+    follow-ups, not reconsiderations; "discard" needs new evidence or context.
+    """
+    if decision is None:
+        return "has not been evaluated yet; it cannot be reconsidered or restated"
+    if decision == "pending":
+        return "is pending evaluation; it cannot be reconsidered or restated"
+    if decision == "future":
+        if not new_context:
+            return (
+                "was marked 'future'; reconsider it only when the project context changed after that "
+                "decision (a cited profile claim that was not in the profile at the time), not only "
+                "because of new evidence or a claim it did not use"
+            )
+        return None
+    if decision == "explore":
+        return (
+            "was marked 'explore'; propose a clearly distinct follow-up (with distinct_from) "
+            "instead of reconsidering it"
+        )
+    if not new_evidence and not new_context:  # discard
+        return (
+            "was discarded; reconsidering it needs new evidence (a verified URL it did not use) "
+            "or project context that changed after that decision"
+        )
+    return None
+
+
+def _context_changed_since(root: Path, project_id: str, decided_at: str, chosen) -> bool:
+    """True if a cited profile claim was not in the profile the user had when deciding.
+
+    That profile is the latest one created at or before `decided_at`; profiles
+    are immutable, so it shows exactly what was known then. A claim counts as
+    the same when its topic, statement and basis are unchanged. Without such a
+    profile, the earlier context cannot be established, and no change is assumed.
+    """
+    decided = common.parse_ts(decided_at)
+    earlier = [p for p in list_profiles(root, project_id) if common.parse_ts(p.created_at) <= decided]
+    if not earlier:
+        return False
+    known = {(c.topic, c.statement, c.basis) for c in earlier[-1].context.claims}
+    return any((c.topic, c.statement, c.basis) not in known for c in chosen)
+
+
 def _draft_references(refs, problems) -> dict[str, str]:
     """canonical URL -> reference ID for the references this draft would create."""
     if not isinstance(refs, list):
@@ -393,15 +442,14 @@ def _check_recommendation(root, rec, where, profile, snapshots, draft_refs, exis
             else:
                 common.text(new_since, f"{where}.new_since")
             old_urls = {u for s in original.sources for u in s.evidence_urls}
-            old_claims = {(c.topic, c.statement) for c in original.project_context.claims}
             new_evidence = verified_urls - old_urls
-            new_context = {(c.topic, c.statement) for c in chosen} - old_claims
-            if not new_evidence and not new_context:
-                problems.append(
-                    f"{where}: reconsidering {reconsiders} needs new evidence (a verified URL it did not use) "
-                    "or new context (a profile claim it did not use)"
-                )
             history = feedback_history(root, reconsiders)
+            new_context = bool(history) and _context_changed_since(root, project_id, history[-1].evaluated_at, chosen)
+            # Only the latest decision matters here; the rating never does.
+            decision = history[-1].decision if history else None
+            problem = _reconsideration_problem(decision, bool(new_evidence), bool(new_context))
+            if problem:
+                problems.append(f"{where}: {reconsiders} {problem}")
             since = history[-1].evaluated_at if history else original.created_at
             new_since_line = f"New since {since}: {new_since}"
 
