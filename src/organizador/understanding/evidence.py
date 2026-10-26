@@ -19,6 +19,7 @@ the project-relative path ("README.md"), "report:<file name>" or
 import ast
 import fnmatch
 import hashlib
+import os
 import re
 import subprocess
 from datetime import datetime
@@ -109,14 +110,14 @@ def collect_evidence(
             raise EvidenceError(f"Vault folder not found: {vault_dir}")
         note = vault_dir / "notes" / "projects" / f"{project_id}.md"
         notes_checked = note.as_posix()
-        if note.is_file() and not note.is_symlink():
+        if note.is_file() and _no_links(note):
             notes.append(_index_external(note, f"note:{note.name}"))
         if github_repo is not None:
             owner, repo = github_repo.split("/")
             reports_dir = vault_dir / "reports" / "github" / f"{owner}__{repo}"
-            if reports_dir.is_dir() and not reports_dir.is_symlink():
+            if reports_dir.is_dir() and _no_links(reports_dir):
                 for path in sorted(reports_dir.glob("*.md")):
-                    if path.is_file() and not path.is_symlink():
+                    if path.is_file() and _no_links(path):
                         reports.append(_index_external(path, f"report:{path.name}"))
 
     return {
@@ -147,8 +148,8 @@ def _index_file(path: Path, rel: str) -> dict:
     name = PurePosixPath(rel).name
     if _matches(name, SECRET_PATTERNS):
         return {"ref": rel, "excluded": "secret"}  # never opened
-    if path.is_symlink():
-        return {"ref": rel, "excluded": "link"}
+    if not _no_links(path):
+        return {"ref": rel, "excluded": "link"}  # the file or a folder on its path is a link
     try:
         size = path.stat().st_size
     except FileNotFoundError:
@@ -251,6 +252,16 @@ def _front_matter(text: str) -> dict:
         if sep and key.strip() in _FRONT_MATTER_KEYS:
             found[key.strip()] = value.strip().strip('"')
     return found
+
+
+def _no_links(path: Path) -> bool:
+    """True if no part of `path` below its (already resolved) root is a symlink or junction.
+
+    `path` is built from a resolved root, so it resolves to itself unless a
+    folder on the way, or the file itself, points somewhere else. Case is
+    ignored where the filesystem ignores it (Windows).
+    """
+    return os.path.normcase(str(path.resolve())) == os.path.normcase(str(path))
 
 
 def _matches(name: str, patterns: tuple[str, ...]) -> bool:

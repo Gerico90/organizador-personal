@@ -35,7 +35,7 @@ What it reads:
   - `<vault>/notes/projects/<project_id>.md`, the optional context note;
   - `<vault>/reports/github/<owner>__<repo>/*.md`, the GitHub activity reports.
 
-  They may be git-ignored. Linked notes and report folders are skipped.
+  They may be git-ignored. A note or report is skipped, without being read, if it or any folder between the vault root and it is a symlink or a Windows junction. The vault root itself may be given through a link.
 
 What it records per inspectable file: `ref`, kind, bytes, lines, SHA-256, plus:
 
@@ -48,7 +48,7 @@ Excluded, with the reason, and their content not indexed:
 | Reason | Rule |
 |---|---|
 | `secret` | file name matches `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.keystore`, `*.jks`, `*.kdbx`, `id_rsa*` and other SSH key names, `.netrc`, `.pypirc`, `.npmrc`, `credentials*`, `*secret*`, `*token*`. **Never opened.** |
-| `link` | the tracked path is a symlink |
+| `link` | the tracked file, or any folder between the project root and it, is a symlink or a Windows junction. **Never opened.** (The project root itself may be given through a link.) |
 | `deleted` | tracked but missing from the working tree |
 | `irrelevant` | empty file, `.gitkeep`, `*.lock`, `package-lock.json`, `*.min.js`, `*.min.css`, `*.map` |
 | `too_large` | over 1,000,000 bytes |
