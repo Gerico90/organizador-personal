@@ -306,17 +306,20 @@ The tests run offline. They use temporary folders and a fake GitHub API, and nev
 | Missing commit: compare → 404, commit lookup → 422 | ✅ as the rewrite check assumes |
 | Incremental run with a real new commit (`organizador-personal`) | ✅ only the new commit reported, previous head not repeated; checkpoint advanced to the new head |
 | Incremental run with a real newly opened issue (`organizador-personal`) | ✅ reported as opened; issue cursor advanced; no duplicate on the next run |
+| Incremental run with a real newly opened pull request (`organizador-personal`) | ✅ reported as opened, not listed as an issue, no commits on `main`; pull request cursor advanced; no duplicate on the next run |
+| Incremental run after merging that pull request with a merge commit (`organizador-personal`) | ✅ reported as merged; exactly the 2 new commits on `main` (branch commit and merge commit), earlier commits not repeated; checkpoint advanced; no duplicate on the next run |
 
 **Not yet validated against the real API:**
-- pull request detection (opened, merged, closed or updated)
-- real issues being closed or updated (only opening has been validated)
+- real issues being closed, reopened or updated (only opening has been validated)
+- real pull requests closed without merging, updated, or in draft (only opening and merging with a merge commit have been validated)
+- squash and rebase merges
 - paging of the commit, issue and pull request lists
 - a full history-rewrite run
 - authenticated or private repositories
 - rate limits and server errors
 - branch names containing `/`
 
-These are covered only by the offline tests.
+Most of these are covered only by the offline tests. Full list: [`docs/mvp1-real-validation.md`](docs/mvp1-real-validation.md), section 8.8.
 
 ---
 

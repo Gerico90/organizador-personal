@@ -178,6 +178,8 @@ Observations (not errors):
 
 These scenarios were **not** exercised with real GitHub data in this step. The offline test suite covers them with a fake API unless noted.
 
+> **Later update:** Parts of the first two scenarios were subsequently validated against `Gerico90/organizador-personal`. See section 8 for the specific cases tested and remaining limitations. The original Step 8A results are preserved below.
+
 | Scenario | Why not tested here |
 |---|---|
 | Incremental run with new commits, issues, or PRs | No external changes were made (instructed not to modify the repository) |
@@ -211,6 +213,12 @@ Authentication: none (`GITHUB_TOKEN` not set)
 Application code: unchanged
 Configuration: only `github.repo` changed; `initial_lookback_days = 15`. The CaféNorte checkpoint and report were preserved (SHA-256 unchanged).
 
+Two kinds of evidence are used in this section:
+- **GitHub API check:** data read directly from the API with `curl`, separately from the program's own client, and compared with the report.
+- **Local check:** checkpoint contents, file lists, SHA-256 hashes and modification times of the files under `state/` and `vault/`, compared before and after each run.
+
+Sections 8.1 and 8.2 were written before this split was made, so their "checked against the API" lists also include local checks such as cursor values. Sections 8.3 to 8.5 keep the two apart.
+
 ### 8.1 Baseline and no-change run
 
 | Run | Time (UTC) | Output | Exit |
@@ -236,7 +244,115 @@ Checked against the API:
 - `pulls_cursor` and `last_head_sha` did not change.
 - Run 4 created no report and left the checkpoint identical.
 
-### 8.3 Pending
+### 8.3 Real incremental commit
 
-- Incremental commit detection: the commit that adds this section is the test commit.
-- Still not verified with real data: closed and updated issues, pull requests, and pagination of the list endpoints.
+Commit `480a8b2` ("docs: record real incremental validation for organizador-personal") was pushed to `main`. It changed only this file.
+
+| Run | Time (UTC) | Output | Exit |
+|---|---|---|---|
+| 5 | 16:40:30Z | Report `2026-10-26T164030Z.md` — 1 commit, 0 pull requests, 0 issues | 0 |
+| 6 | 16:40:51Z | `No changes since 2026-10-26T16:40:30Z.` | 0 |
+
+GitHub API check:
+- Head of `main`: `480a8b29a0f5a5fba2883ee398ca32df6625413f`, the same as the report's `head_sha`.
+- Compare `02278df...main`: status `ahead`, 1 commit (`480a8b2`, author Gerico90, 2026-10-26T16:38:52Z). The report lists that commit only.
+- The previous commit `02278df` is the parent of `480a8b2` and is not repeated in the report.
+- Issue #1 still had `updated_at` 16:32:16Z, and there were 0 pull requests. The report shows no issue or pull request activity.
+
+Local check:
+- `last_head_sha` advanced from `02278df…` to `480a8b2…`. `issues_cursor` and `pulls_cursor` did not change.
+- The report period is 16:33:00Z → 16:40:30Z, starting at the previous `last_success_at`.
+- Run 6 created no report and left all files identical.
+
+### 8.4 Real pull request opened
+
+Pull request #2, "Update README validation status", was opened at 16:53:23Z. Its base is `main` and its head is branch `test/pr-incremental-validation` at `ab29afb`.
+
+| Run | Time (UTC) | Output | Exit |
+|---|---|---|---|
+| 7 | 16:55:05Z | Report `2026-10-26T165505Z.md` — 0 commits, 1 pull request (1 opened), 0 issues | 0 |
+| 8 | 16:55:20Z | `No changes since 2026-10-26T16:55:05Z.` | 0 |
+
+GitHub API check:
+- PR #2 is open, not a draft, with no `closed_at` or `merged_at`. `created_at` and `updated_at` are both 16:53:23Z, and the author is Gerico90. The report classifies it as **opened**.
+- The issues endpoint also returns #2, marked with a `pull_request` field, because GitHub lists pull requests as issues. The report does **not** show it as an issue. The only real issue, #1, was unchanged.
+- Head of `main` was still `480a8b2`. Compare `480a8b2...main` returned `identical`. The report shows 0 commits. Pushing the PR branch did not appear as commits on `main`.
+
+Local check:
+- `pulls_cursor` advanced to `{ts: 16:53:23Z, ids: [2]}`. `issues_cursor` and `last_head_sha` did not change.
+- Run 8 created no report and left all files identical.
+
+### 8.5 Real pull request merged
+
+PR #2 was merged at 17:05:04Z with a merge commit.
+
+| Run | Time (UTC) | Output | Exit |
+|---|---|---|---|
+| 9 | 17:06:04Z | Report `2026-10-26T170604Z.md` — 2 commits, 1 pull request (1 merged), 0 issues | 0 |
+| 10 | 17:06:36Z | `No changes since 2026-10-26T17:06:04Z.` | 0 |
+
+GitHub API check:
+- PR #2: `merged: true`. `merged_at`, `closed_at` and `updated_at` are all 17:05:04Z, and `merge_commit_sha` is `817e89f`. The report classifies it as **merged**.
+- Head of `main`: `817e89f9afe8671cbff24ad8199b70eb26429a6c`, with parents `480a8b2` and `ab29afb`.
+- Compare `480a8b2...main`: status `ahead`, exactly 2 commits. The report lists the same two, newest first:
+  - `817e89f9afe8671cbff24ad8199b70eb26429a6c` — "Merge pull request #2 from Gerico90/test/pr-incremental-validation", 2026-10-26T17:05:04Z
+  - `ab29afbf51c0a11595b6a01caa2e5f13e6ee4dc9` — "docs: update README validation status", 2026-10-26T16:47:59Z
+- Earlier commits `480a8b2` and `02278df` are not repeated.
+- The issues endpoint returned #2 (pull request) and #1 (unchanged). The report shows 0 issues.
+
+Local check:
+- `last_head_sha` advanced to `817e89f…`. `pulls_cursor` advanced to `{ts: 17:05:04Z, ids: [2]}`. `issues_cursor` did not change.
+- Run 10 created no report and left all files identical.
+
+### 8.6 File integrity across runs 1–10 (local check)
+
+After every run, the file list and SHA-256 hashes under `state/` and `vault/` were compared with the previous run:
+- Each run that reported activity added exactly one new report and rewrote only the `organizador-personal` checkpoint.
+- Each "No changes" run (2, 4, 6, 8, 10) left every file identical, including the checkpoint's modification time.
+- No earlier report was ever changed.
+
+Final hashes:
+
+| File | SHA-256 | Written by |
+|---|---|---|
+| `state/github/Gerico90__cafenorte-data-challenge.json` | `9d20ef10…eb41e9` | Step 8A (unchanged since) |
+| `vault/…/Gerico90__cafenorte-data-challenge/2026-10-26T021927Z.md` | `1d86f295…14b299` | Step 8A (unchanged since) |
+| `vault/…/Gerico90__organizador-personal/2026-10-26T162739Z.md` | `c1a7a00a…5dde6c` | Run 1 |
+| `vault/…/Gerico90__organizador-personal/2026-10-26T163300Z.md` | `9773873b…ce15950` | Run 3 |
+| `vault/…/Gerico90__organizador-personal/2026-10-26T164030Z.md` | `c574782f…7205` | Run 5 |
+| `vault/…/Gerico90__organizador-personal/2026-10-26T165505Z.md` | `b678c5bc…46ea4` | Run 7 |
+| `vault/…/Gerico90__organizador-personal/2026-10-26T170604Z.md` | `8a006356…50fc3` | Run 9 |
+| `state/github/Gerico90__organizador-personal.json` | `04f429ba…ef564` | Run 9 |
+
+### 8.7 Observations (not errors)
+
+- Commit messages are shown by their first line only. The `Co-Authored-By` line in `ab29afb` does not appear in the report.
+- In the raw report text the merge commit reads `Merge pull request \#2`. The backslash is Markdown escaping and renders as "#2".
+- Without a token GitHub allows 60 requests per hour. Runs 9 and 10 plus the `curl` checks brought the remaining count down to 17 before run 10. The limit was not reached.
+- The test branch `test/pr-incremental-validation` was kept after the merge.
+
+### 8.8 Still not tested against the real API
+
+These have not been exercised with real GitHub data. Some are covered only by the offline tests with a fake API (see section 6):
+
+- Issues being closed, reopened, or updated (comments, edits, labels). Only opening was tested.
+- Pull requests closed without merging, or updated (new commits, comments, edits). Draft pull requests. Only opening and merging were tested.
+- An issue and a pull request changing in the same run. Several items sharing the same timestamp.
+- Pagination of the commit, issue and pull request lists. All results fit in one page.
+- Squash and rebase merges. Only a merge commit was tested.
+- A full history-rewrite run (force-push), and the full compare-404 flow.
+- Authenticated requests and private repositories.
+- Rate-limit responses (403/429), server errors, timeouts and network failures.
+- Default branch names containing `/`, a default branch change, an empty repository, a renamed or transferred repository.
+- Report name collision and checkpoint-save failure (local filesystem cases).
+- Running from `C:\` (known environment problem, see README).
+
+### 8.9 Conclusion
+
+Against the real GitHub API, the program produced a correct baseline and correctly detected:
+- a newly opened issue,
+- a direct commit on `main`,
+- a newly opened pull request, which did not appear as an issue,
+- the same pull request after it was merged, together with both commits the merge added to `main`.
+
+In every case the checkpoint advanced as designed. Every following run with no activity reported "No changes" and wrote nothing. Earlier reports and the CaféNorte checkpoint were never modified. The scenarios in 8.8 remain unverified against real data.
