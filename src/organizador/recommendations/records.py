@@ -99,21 +99,7 @@ def create_recommendation(root: Path, draft: dict, now: datetime | None = None) 
     are set here; `reconsiders` is optional. Every reference ID and the
     reconsidered recommendation must already exist.
     """
-    if not isinstance(draft, dict):
-        raise DataError("Invalid recommendation: draft must be a dict")
-    created_at = common.utc_now(now)
-    rec_id = f"rec-{created_at.replace('-', '').replace(':', '')}-{_random_suffix()}"
-    data = {"schema_version": SCHEMA_VERSION, "id": rec_id, "created_at": created_at}
-    data.update(draft)
-    data.setdefault("reconsiders", None)
-    for key in ("schema_version", "id", "created_at"):
-        if key in draft:
-            raise DataError(f"Invalid recommendation: {key} is set automatically, not by the draft")
-
-    try:
-        recommendation = _from_dict(data, rec_id)
-    except ValueError as e:
-        raise DataError(f"Invalid recommendation: {e}") from None
+    recommendation = _validated(draft, common.utc_now(now), _random_suffix())
 
     for ref_id in recommendation.reference_ids:
         load_reference(root, ref_id)  # NotFoundError / DataError
@@ -125,12 +111,38 @@ def create_recommendation(root: Path, draft: dict, now: datetime | None = None) 
                 f"not {recommendation.project_id!r}"
             )
 
+    rec_id = recommendation.id
     path = common.record_path(root, RECOMMENDATIONS_DIR, rec_id, ".json")
     try:
         common.create_new_file(path, common.dump_json(_to_dict(recommendation)))
     except FileExistsError:
         raise ConflictError(f"Recommendation {rec_id} already exists; nothing was written") from None
     return recommendation
+
+
+def check_recommendation_draft(draft: dict, now: datetime | None = None) -> Recommendation:
+    """Validate `draft` exactly as create_recommendation would, without storing it.
+
+    Only the record itself is checked; whether its references and the
+    reconsidered recommendation exist is checked when it is created.
+    """
+    return _validated(draft, common.utc_now(now), "00000000")
+
+
+def _validated(draft, created_at: str, suffix: str) -> Recommendation:
+    if not isinstance(draft, dict):
+        raise DataError("Invalid recommendation: draft must be a dict")
+    rec_id = f"rec-{created_at.replace('-', '').replace(':', '')}-{suffix}"
+    data = {"schema_version": SCHEMA_VERSION, "id": rec_id, "created_at": created_at}
+    data.update(draft)
+    data.setdefault("reconsiders", None)
+    for key in ("schema_version", "id", "created_at"):
+        if key in draft:
+            raise DataError(f"Invalid recommendation: {key} is set automatically, not by the draft")
+    try:
+        return _from_dict(data, rec_id)
+    except ValueError as e:
+        raise DataError(f"Invalid recommendation: {e}") from None
 
 
 def load_recommendation(root: Path, rec_id: str) -> Recommendation:

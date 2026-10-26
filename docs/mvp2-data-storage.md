@@ -1,6 +1,6 @@
 # MVP 2 — Step 1: Local data storage
 
-Status: storage, validation and offline tests only. There is no agent, research workflow, scheduler, CLI or UI yet. Nothing in this step reads or changes MVP 1 configuration, checkpoints or reports.
+Status: storage, validation and offline tests only. There is no agent, research workflow, scheduler, CLI or UI yet. Nothing in this step reads or changes MVP 1 configuration, checkpoints or reports. (Step 3 later added a small command line for feedback; see section 6.)
 
 Code: `src/organizador/recommendations/`. Tests: `tests/test_recommendations_*.py`.
 
@@ -161,5 +161,5 @@ Errors: `DataError` (invalid input or file), with subclasses `NotFoundError` (mi
 - Listing reads every recommendation file; fine for hundreds, not for very large numbers.
 - Non-GitHub URL normalization is deliberately light (see section 2).
 - `analyzed_files` and claim `sources` are free text; they are not checked against the project.
-- No CLI yet: the functions are only called from tests.
+- The command line added in step 3 (`python -m organizador.recommendations list|show|feedback`) reads recommendations and adds feedback; it cannot edit or delete anything. Recommendations and references are created by the research workflow (`docs/mvp2-external-research.md`).
 - The external-source rule checks that a reference or a URL exists, not that the URL is reachable or supports the claim. A reference that is deleted or corrupted after the recommendation was created is reported by `check_data`, not prevented.

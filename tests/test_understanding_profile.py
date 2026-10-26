@@ -283,3 +283,106 @@ def test_profile_context_is_usable_as_recommendation_context(tmp_path, fixed_suf
     stored = json.loads((tmp_path / "profiles" / f"{profile.id}.json").read_text(encoding="utf-8"))
     rec = create_recommendation(tmp_path, recommendation_draft(project_context=stored["context"]), now=NOW)
     assert rec.project_context == profile.context
+
+
+# --- note fingerprint and freshness ----------------------------------------
+
+from organizador.understanding.profile import list_profiles, profile_freshness  # noqa: E402
+
+NOTE_HASH = EVIDENCE["notes"][0]["sha256"]
+
+
+def test_new_profile_records_note_fingerprint(tmp_path, fixed_suffix):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    assert profile.inputs.notes_sha256 == {"note:demo-project.md": NOTE_HASH}
+    stored = json.loads((tmp_path / "profiles" / f"{profile.id}.json").read_text(encoding="utf-8"))
+    assert stored["inputs"]["notes_sha256"] == {"note:demo-project.md": NOTE_HASH}
+
+
+def test_profile_without_notes_records_empty_fingerprint(tmp_path, fixed_suffix):
+    d = make_draft(analyzed_files=["README.md", "src/app.py", "report:2026-10-26T170604Z.md"])
+    d["context"]["claims"] = [c for c in d["context"]["claims"] if not any(s.startswith("note:") for s in c["sources"])]
+    profile = create_profile(tmp_path, d, evidence(notes=[]), now=NOW)
+    assert profile.inputs.notes_sha256 == {}
+    assert profile_freshness(profile, evidence(notes=[])) == []
+
+
+def write_old_profile(tmp_path, fixed_suffix_profile):
+    """A profile saved before notes_sha256 existed."""
+    path = tmp_path / "profiles" / f"{fixed_suffix_profile.id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    del data["inputs"]["notes_sha256"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return load_profile(tmp_path, fixed_suffix_profile.id)
+
+
+def test_old_profile_loads_but_is_never_current(tmp_path, fixed_suffix):
+    old = write_old_profile(tmp_path, create_profile(tmp_path, make_draft(), evidence(), now=NOW))
+    assert old.inputs.notes_sha256 is None
+    reasons = profile_freshness(old, evidence())
+    assert len(reasons) == 1 and "no context-note fingerprint" in reasons[0]
+    assert "notes_sha256" not in json.dumps(profile_module._to_dict(old))  # round-trips unchanged
+
+
+def test_current_profile(tmp_path, fixed_suffix):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    assert profile_freshness(profile, evidence()) == []
+
+
+def test_note_modified_added_removed(tmp_path, fixed_suffix, monkeypatch):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    changed_note = [dict(EVIDENCE["notes"][0], sha256="9" * 64)]
+    assert profile_freshness(profile, evidence(notes=changed_note)) == [
+        "context note note:demo-project.md changed after the profile was made"
+    ]
+    assert profile_freshness(profile, evidence(notes=[])) == [
+        "context note note:demo-project.md was removed or is no longer readable"
+    ]
+
+    d = make_draft(analyzed_files=["README.md", "src/app.py", "report:2026-10-26T170604Z.md"])
+    d["context"]["claims"] = [c for c in d["context"]["claims"] if not any(s.startswith("note:") for s in c["sources"])]
+    monkeypatch.setattr(profile_module, "_random_suffix", lambda: "0000000b")
+    without_note = create_profile(tmp_path, d, evidence(notes=[]), now=NOW)
+    assert profile_freshness(without_note, evidence()) == [
+        "context note note:demo-project.md was added after the profile was made"
+    ]
+
+
+def test_commit_and_repository_changes(tmp_path, fixed_suffix):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    reasons = profile_freshness(profile, evidence(commit_sha="b" * 40, github_repo="other/repo"))
+    assert any("commit bbbbbbb" in r for r in reasons)
+    assert any("GitHub repository differs" in r for r in reasons)
+    assert profile_freshness(profile, evidence(project_id="other-project"))[0].startswith("profile is for project")
+
+
+@pytest.mark.parametrize(
+    "value, message",
+    [
+        ({}, "map exactly"),
+        ({"note:demo-project.md": "abc"}, "SHA-256"),
+        ({"note:demo-project.md": NOTE_HASH, "note:other.md": NOTE_HASH}, "map exactly"),
+        (["x"], "map exactly"),
+    ],
+)
+def test_invalid_stored_fingerprint(tmp_path, fixed_suffix, value, message):
+    profile = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    path = tmp_path / "profiles" / f"{profile.id}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["inputs"]["notes_sha256"] = value
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(DataError, match=message):
+        load_profile(tmp_path, profile.id)
+
+
+def test_list_profiles(tmp_path, monkeypatch):
+    suffixes = iter(["0000000a", "0000000b", "0000000c"])
+    monkeypatch.setattr(profile_module, "_random_suffix", lambda: next(suffixes))
+    later = create_profile(tmp_path, make_draft(), evidence(), now=NOW.replace(hour=12))
+    earlier = create_profile(tmp_path, make_draft(), evidence(), now=NOW)
+    assert list_profiles(tmp_path, "demo-project") == (earlier, later)
+    assert list_profiles(tmp_path, "other-project") == ()
+    assert list_profiles(tmp_path / "absent", "demo-project") == ()
+    (tmp_path / "profiles" / "notes.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(DataError, match="Unexpected file name"):
+        list_profiles(tmp_path, "demo-project")

@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -102,10 +103,12 @@ def test_check_and_save(tmp_path, capsys):
     assert "Profile saved" in capsys.readouterr().out
     [saved] = list((data_root / "profiles").iterdir())
     stored = json.loads(saved.read_text(encoding="utf-8"))
+    note_hash = hashlib.sha256((vault / "notes" / "projects" / "demo-project.md").read_bytes()).hexdigest()
     assert stored["inputs"] == {
         "working_tree_clean": True,
         "reports": ["report:2026-10-26T170604Z.md"],
         "notes": ["note:demo-project.md"],
+        "notes_sha256": {"note:demo-project.md": note_hash},
     }
     assert (snapshot(repo), snapshot(vault)) == before
 

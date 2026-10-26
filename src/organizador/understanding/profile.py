@@ -41,6 +41,10 @@ TOPICS = ("purpose", "capability", "architecture", "limitation", "objective")
 _DRAFT_KEYS = ("project_id", "context")
 _KEYS = ("schema_version", "id", "created_at", "project_id", "context", "inputs")
 _INPUT_KEYS = ("working_tree_clean", "reports", "notes")
+# Optional only so that profiles saved before it existed still load; such a
+# profile is never considered current (see profile_freshness).
+_OPTIONAL_INPUT_KEYS = ("notes_sha256",)
+_SHA256_RE = re.compile(r"[0-9a-f]{64}", re.ASCII)
 _SOURCE_RE = re.compile(r"(?P<ref>.+?)(?::(?P<start>\d+)(?:-(?P<end>\d+))?)?")
 
 
@@ -49,6 +53,8 @@ class ProfileInputs:
     working_tree_clean: bool
     reports: tuple[str, ...]
     notes: tuple[str, ...]
+    # ref -> SHA-256 of the note when the profile was made; None in old profiles.
+    notes_sha256: dict[str, str] | None
 
 
 @dataclass(frozen=True)
@@ -128,6 +134,7 @@ def create_profile(root: Path, draft: dict, evidence: dict, now: datetime | None
             "working_tree_clean": evidence["working_tree_clean"],
             "reports": [e["ref"] for e in evidence["reports"]],
             "notes": [e["ref"] for e in evidence["notes"]],
+            "notes_sha256": {e["ref"]: e["sha256"] for e in evidence["notes"]},
         },
     }
     try:
@@ -155,6 +162,58 @@ def load_profile(root: Path, profile_id: str) -> Profile:
         return _from_dict(data, profile_id)
     except ValueError as e:
         raise DataError(f"Invalid profile {path}: {e}") from None
+
+
+def list_profiles(root: Path, project_id: str) -> tuple[Profile, ...]:
+    """All profiles of `project_id`, oldest first. One invalid file stops the listing."""
+    try:
+        common.project_id(project_id)
+    except ValueError as e:
+        raise DataError(str(e)) from None
+    directory = common.data_folder(root, PROFILES_DIR)
+    if not directory.is_dir():
+        return ()
+    found = []
+    for path in sorted(directory.glob("*.json")):
+        profile_id = path.name[: -len(".json")]
+        if not PROFILE_ID_RE.fullmatch(profile_id):
+            raise DataError(f"Unexpected file name in {directory}: {path.name}")
+        profile = load_profile(root, profile_id)
+        if profile.project_id == project_id:
+            found.append(profile)
+    return tuple(sorted(found, key=lambda p: (p.created_at, p.id)))
+
+
+def profile_freshness(profile: Profile, evidence: dict) -> list[str]:
+    """Reasons why `profile` no longer describes the project. Empty means current.
+
+    Compares with a freshly collected evidence index: project, repository,
+    commit, and the context note (added, removed or changed). A profile
+    without a note fingerprint is never current.
+    """
+    reasons = []
+    if profile.project_id != evidence["project_id"]:
+        reasons.append(f"profile is for project {profile.project_id!r}, not {evidence['project_id']!r}")
+    if (profile.context.github_repo or "").casefold() != (evidence["github_repo"] or "").casefold():
+        reasons.append("the GitHub repository differs from the profile's")
+    if profile.context.commit_sha != evidence["commit_sha"]:
+        reasons.append(
+            f"the project is at commit {evidence['commit_sha'][:7]}, the profile describes "
+            f"{(profile.context.commit_sha or 'no commit')[:7]}"
+        )
+    recorded = profile.inputs.notes_sha256
+    current = {e["ref"]: e["sha256"] for e in evidence["notes"]}
+    if recorded is None:
+        reasons.append("the profile has no context-note fingerprint (made before notes_sha256 existed)")
+    else:
+        for ref in sorted(current.keys() - recorded.keys()):
+            reasons.append(f"context note {ref} was added after the profile was made")
+        for ref in sorted(recorded.keys() - current.keys()):
+            reasons.append(f"context note {ref} was removed or is no longer readable")
+        for ref in sorted(current.keys() & recorded.keys()):
+            if current[ref] != recorded[ref]:
+                reasons.append(f"context note {ref} changed after the profile was made")
+    return reasons
 
 
 def _check_source(source: str, refs: dict, analyzed: set) -> str | None:
@@ -188,6 +247,7 @@ def _to_dict(p: Profile) -> dict:
             "working_tree_clean": p.inputs.working_tree_clean,
             "reports": list(p.inputs.reports),
             "notes": list(p.inputs.notes),
+            **({} if p.inputs.notes_sha256 is None else {"notes_sha256": dict(p.inputs.notes_sha256)}),
         },
     }
 
@@ -203,9 +263,17 @@ def _from_dict(data, expected_id: str) -> Profile:
         raise ValueError(f"id {profile_id!r} does not match created_at {created_at!r}")
 
     inputs = data["inputs"]
-    common.check_keys(inputs, _INPUT_KEYS, (), "inputs.")
+    common.check_keys(inputs, _INPUT_KEYS, _OPTIONAL_INPUT_KEYS, "inputs.")
     if not isinstance(inputs["working_tree_clean"], bool):
         raise ValueError("inputs.working_tree_clean must be true or false")
+    notes = common.text_list(inputs["notes"], "inputs.notes")
+    notes_sha256 = inputs.get("notes_sha256")
+    if notes_sha256 is not None:
+        if not isinstance(notes_sha256, dict) or set(notes_sha256) != set(notes):
+            raise ValueError("inputs.notes_sha256 must map exactly the refs in inputs.notes to hashes")
+        for ref, digest in notes_sha256.items():
+            if not isinstance(digest, str) or not _SHA256_RE.fullmatch(digest):
+                raise ValueError(f"inputs.notes_sha256[{ref!r}] must be a lowercase SHA-256 hex digest")
 
     return Profile(
         id=profile_id,
@@ -215,6 +283,7 @@ def _from_dict(data, expected_id: str) -> Profile:
         inputs=ProfileInputs(
             working_tree_clean=inputs["working_tree_clean"],
             reports=common.text_list(inputs["reports"], "inputs.reports"),
-            notes=common.text_list(inputs["notes"], "inputs.notes"),
+            notes=notes,
+            notes_sha256=None if notes_sha256 is None else dict(notes_sha256),
         ),
     )

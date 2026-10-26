@@ -77,13 +77,25 @@ Also recorded: `commit_sha` (`HEAD`), `working_tree_clean` (tracked files only),
       {"topic": "capability", "statement": "…", "basis": "observed", "sources": ["README.md:15-16"]}
     ]
   },
-  "inputs": {"working_tree_clean": true, "reports": ["report:…"], "notes": []}
+  "inputs": {"working_tree_clean": true, "reports": ["report:…"], "notes": ["note:organizador-personal.md"],
+             "notes_sha256": {"note:organizador-personal.md": "<SHA-256 of the note>"}}
 }
 ```
 
 - `context` has exactly the shape of a recommendation's `project_context` (`docs/mvp2-data-storage.md`) and is validated by the same code, so a recommendation can copy it unchanged. No existing schema was changed.
-- `inputs` is filled from the evidence, not by the draft.
+- `inputs` is filled from the evidence, not by the draft. `notes_sha256` records the SHA-256 of each context note used; it is always written, and empty when there was no note.
 - Profiles are created with exclusive create and never rewritten; a new run makes a new profile. The link and path rules of the data storage apply.
+
+### Freshness
+
+`profile_freshness(profile, evidence)` compares a profile with a freshly collected evidence index and lists why it no longer describes the project:
+
+- the project or GitHub repository differs;
+- the commit differs;
+- a context note was added, removed or changed since the profile was made (notes can change without a commit);
+- the profile has no `notes_sha256` at all. Profiles saved before this field existed still load, but are never treated as current.
+
+An empty list means the profile is current. `list_profiles(root, project_id)` returns a project's profiles, oldest first.
 
 ### Claims
 
