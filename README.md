@@ -293,7 +293,7 @@ The tests run offline. They use temporary folders and a fake GitHub API, and nev
 
 ## Validation status
 
-**Offline:** 802 tests pass: 310 for MVP 1, 244 for the MVP 2 data storage and its command line ([`docs/mvp2-data-storage.md`](docs/mvp2-data-storage.md)), 111 for project understanding ([`docs/mvp2-project-understanding.md`](docs/mvp2-project-understanding.md)) and 137 for external research ([`docs/mvp2-external-research.md`](docs/mvp2-external-research.md)). The MVP 1 tests cover:
+**Offline:** 813 tests pass: 310 for MVP 1, 244 for the MVP 2 data storage and its command line ([`docs/mvp2-data-storage.md`](docs/mvp2-data-storage.md)), 111 for project understanding ([`docs/mvp2-project-understanding.md`](docs/mvp2-project-understanding.md)) and 148 for external research ([`docs/mvp2-external-research.md`](docs/mvp2-external-research.md)). The MVP 1 tests cover:
 - configuration, file safety, checkpoints, the API client and change detection
 - report rendering
 - full runs end to end against a fake GitHub, including baselines, incremental runs, ties, long gaps, history rewrites, uncertain 404s, failures on later pages, name collisions, checkpoint-save failures, empty repositories, and protection of human notes

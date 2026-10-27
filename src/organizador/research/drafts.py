@@ -34,9 +34,12 @@ Checks, on top of the storage rules of recommendations:
   evidence URL has a snapshot. A found quote makes a statement traceable;
   it does not prove the interpretation;
 - the relationship starts with functional:, technical: or analogical:;
-- every existing recommendation flagged by overlap_candidates is either
-  reconsidered or explained in distinct_from; flagged cases are never
-  rejected automatically;
+- a proposal whose text equals an existing recommendation's, ignoring case
+  and whitespace, is rejected as a duplicate unless it reconsiders that
+  recommendation; distinct_from does not override this;
+- every existing recommendation flagged by overlap_candidates (possible
+  overlap, by similarity) is either reconsidered or explained in
+  distinct_from; flagged cases are never rejected automatically;
 - a reconsideration names new evidence (a verified URL the original did not
   use) or new context (a profile claim the original did not use), and says
   what is new in new_since;
@@ -299,6 +302,11 @@ def _context_changed_since(root: Path, project_id: str, decided_at: str, chosen)
     return any((c.topic, c.statement, c.basis) not in known for c in chosen)
 
 
+def _same_text(text: str) -> str:
+    """`text` without case and whitespace differences, to spot verbatim repeats."""
+    return " ".join(text.split()).casefold()
+
+
 def _draft_references(refs, problems) -> dict[str, str]:
     """canonical URL -> reference ID for the references this draft would create."""
     if not isinstance(refs, list):
@@ -394,7 +402,8 @@ def _check_recommendation(root, rec, where, profile, snapshots, draft_refs, exis
         if problem:
             problems.append(f"{where}.verified[{j}]: {problem}")
 
-    # Overlap with existing recommendations: explain or reconsider, never auto-reject.
+    # Overlap with existing recommendations: explain or reconsider, never auto-reject
+    # (except a verbatim repeat, below).
     reconsiders = rec.get("reconsiders")
     distinct = rec.get("distinct_from", [])
     if not isinstance(distinct, list):
@@ -414,6 +423,14 @@ def _check_recommendation(root, rec, where, profile, snapshots, draft_refs, exis
         "proposal": common.text(rec["proposal"], f"{where}.proposal"),
         "reference_ids": reference_ids,
     }
+    # The same proposal text is a duplicate, whatever distinct_from says.
+    same_text = _same_text(candidate_view["proposal"])
+    for other in existing:
+        if other["id"] != reconsiders and _same_text(other["proposal"]) == same_text:
+            problems.append(
+                f"{where}: repeats the proposal of {other['id']} word for word; "
+                "reconsider it (reconsiders) or drop the proposal"
+            )
     for candidate in overlap_candidates(candidate_view, existing):
         if candidate["id"] != reconsiders and candidate["id"] not in explained:
             problems.append(

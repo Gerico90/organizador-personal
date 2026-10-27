@@ -275,6 +275,67 @@ def test_distinct_from_must_name_a_recommendation_of_the_project(env):
     assert "is not a recommendation of this project" in problems(env, draft_for(env, [rec]))
 
 
+SAME_PROPOSAL = stored_recommendation()["proposal"]
+
+
+@pytest.mark.parametrize(
+    "proposal",
+    [
+        SAME_PROPOSAL,
+        SAME_PROPOSAL.upper(),
+        "  " + SAME_PROPOSAL.replace(" ", "\n\t  ") + " ",
+    ],
+)
+def test_verbatim_duplicate_is_rejected_whatever_distinct_from_says(env, proposal):
+    root, _, _ = env
+    old = existing_rec(root)
+    rec = research_recommendation(proposal=proposal, distinct_from=[{"id": old.id, "reason": "Different."}])
+    assert f"repeats the proposal of {old.id} word for word" in problems(env, draft_for(env, [rec]))
+
+
+def test_follow_up_sharing_reference_category_and_title_is_not_a_verbatim_duplicate(env):
+    root, _, _ = env
+    old = existing_rec(root)
+    follow_up = research_recommendation(
+        title=old.title,
+        proposal="Generate random update sequences sharing timestamps across two repositories and check no item is lost.",
+        distinct_from=[{"id": old.id, "reason": "covers ties across repositories, not within one"}],
+    )
+    assert problems(env, draft_for(env, [follow_up])) == ""
+
+
+@pytest.mark.parametrize(
+    "decision, evidence, message",
+    [
+        (None, True, "has not been evaluated yet"),
+        ("pending", True, "is pending evaluation"),
+        ("future", True, "only when the project context changed"),
+        ("explore", True, "propose a clearly distinct follow-up"),
+        ("discard", False, "was discarded"),
+        ("discard", True, None),
+    ],
+)
+def test_verbatim_reconsideration_follows_the_latest_decision(env, decision, evidence, message):
+    old = reconsider_setup(env, decision)
+    rec = dict(reconsideration(old, evidence), proposal=SAME_PROPOSAL.upper())
+    found = problems(env, draft_for(env, [rec]))
+    assert "word for word" not in found
+    if message is None:
+        assert found == ""
+    else:
+        assert message in found
+
+
+def test_reconsideration_cannot_repeat_another_recommendation_word_for_word(env):
+    root, _, _ = env
+    old = reconsider_setup(env, "discard")
+    other = create_recommendation(
+        root, stored_recommendation(title="Another idea", proposal="Record every run in a local journal."), now=T0
+    )
+    rec = dict(reconsideration(old, evidence=True), proposal="Record every run in a local journal.")
+    assert f"repeats the proposal of {other.id} word for word" in problems(env, draft_for(env, [rec]))
+
+
 def test_two_similar_proposals_in_one_draft(env):
     same = draft_for(env, [research_recommendation(), research_recommendation()])
     assert "look alike" in problems(env, same)

@@ -105,7 +105,7 @@ A standalone page that is not a project or repository you recommend (a documenta
 python -m organizador.research check --data-root <data-root> --draft <draft> PROJECT
 ```
 
-Fix every problem and run it again. When it reports that a proposal **may duplicate** an earlier recommendation, decide honestly:
+Fix every problem and run it again. A proposal that **repeats** an earlier recommendation's text (ignoring case and whitespace) is rejected even with `distinct_from`: reconsider it with `reconsiders` or drop it. When it reports that a proposal **may duplicate** an earlier recommendation, decide honestly:
 
 - different proposal (even about the same repository): add `distinct_from` with what differs;
 - the same idea with meaningful new evidence or context: set `reconsiders` and `new_since`;
