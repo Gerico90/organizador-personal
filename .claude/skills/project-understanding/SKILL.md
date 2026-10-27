@@ -1,6 +1,6 @@
 ---
 name: project-understanding
-description: Build an evidence-linked profile of one personal project (purpose, capabilities, architecture, limitations, objectives) from its repository, its GitHub activity reports and an optional context note, then validate and store it under data/profiles/. Use when the user asks to profile, understand or analyze a project with this workflow, or runs /project-understanding.
+description: Build an evidence-linked profile of one personal project (purpose, capabilities, architecture, limitations, objectives) from its repository, its GitHub activity reports and an optional context note, then validate and store it under the data root's profiles/ folder (data/ by default). Use when the user asks to profile, understand or analyze a project with this workflow, or runs /project-understanding.
 ---
 
 # Project understanding
@@ -18,7 +18,24 @@ Arguments: `<project-id> <project-dir> [owner/repo] [vault-dir]`.
 - `owner/repo`: the GitHub repository, if the project has one.
 - `vault-dir`: passing it authorizes reading `<vault>/notes/projects/<project-id>.md` and `<vault>/reports/github/<owner>__<repo>/*.md`. Omit it if the user did not authorize notes and reports.
 
-Data root for saved profiles: `data/` in this repository (git-ignored). Run all commands from this repository's folder with its virtual environment, e.g. `.venv\Scripts\python -m organizador.understanding ...` on Windows.
+Run all commands from this repository's folder with its virtual environment, e.g. `.venv\Scripts\python -m organizador.understanding ...` on Windows.
+
+### Data root
+
+Profiles are saved under a **data root**, written `<data-root>` below.
+
+- Default: `data/` in this repository (git-ignored), the real personal data.
+- If the user gives another data root, for example a scratchpad copy for a test, use that exact path for **every** `--data-root` in this run, and tell the user which one you used. Never mix the real `data/` and a test root in one run.
+- The commands already take `--data-root`; nothing else needs configuring.
+
+### Draft review vs. isolated test save
+
+- **Draft review**: stop after step 4 and show the draft. Nothing is saved anywhere, so `/project-research` cannot use it yet.
+- **Isolated test save**: the profile is saved for real, but into a copy of the data, so the real `data/` is not touched:
+  1. Copy the real data root to a new scratchpad folder, e.g. `<scratchpad>/data-test` (so earlier profiles, recommendations and feedback are there too). Copy, never move.
+  2. Run steps 1 to 4 as usual, then step 5 with `--data-root <scratchpad>/data-test`.
+  3. The saved profile is immutable like any other. `/project-research` run with the same `--data-root <scratchpad>/data-test` finds it as the latest profile and can use it right away.
+  4. Nothing in the test root reaches `data/` unless the user later asks for it to be copied there.
 
 ## Steps
 
@@ -84,6 +101,9 @@ Write `<scratchpad>/profile-draft-<id>.json`:
 - An `objective` needs explicit evidence of intent: the source says the work is planned, future, in progress or a next step. Use `observed` for it.
 - A source saying something is "not implemented", "not yet" available, out of scope or untested is **not** evidence of a plan. Record it as a `limitation`, or leave it out; do not infer a plan from it.
 - Planned work is never a `capability`. A capability documented but not visible in the code you read may be `observed` from the documentation; write "documented as" in the statement.
+- A source stating that something is **not decided yet** (priorities, timeline, which projects come next) is an observed fact about the current status: record it as `observed` and cite it. What will eventually be decided remains unknown; never infer or suggest it.
+
+**Scope qualifiers**: keep the scope a source gives a statement. A restriction listed under a heading or phrase that limits it ("Scope boundaries (MVP 1)", "for now", "in this step") applies only to that scope. It is not a contradiction or an inconsistency with later phases that do something else, unless a source applies the restriction to them too. Example of an error to avoid: the README's "no AI agents" appears under "Scope boundaries (MVP 1)"; it is not in conflict with MVP 2 work on agents or research.
 
 **Claims are about the project, not about your inputs**:
 - Facts about the evidence itself (activity reports that stop before the analyzed commit, a missing context note, files you did not read) are coverage observations. Put them in your final report, not in claims.
@@ -104,8 +124,8 @@ Fix every problem it reports and run it again until it says the draft is valid. 
 
 ### 5. Save
 
-Unless the user asked for a draft only, run the same `check` command with `--save --data-root data`. Saved profiles are immutable; a later run creates a new profile.
+Unless the user asked for a draft only, run the same `check` command with `--save --data-root <data-root>`. Saved profiles are immutable; a later run creates a new profile. Never edit or replace a saved profile, including one in a test root: if it is wrong, save a corrected new one.
 
 ### 6. Report
 
-Tell the user: the saved profile path (or the draft path), the commit analyzed and whether the working tree was clean, the number of claims per topic and per basis, the files read, whether a context note and reports were used, coverage observations (for example reports that end before the analyzed commit), and the most important `missing` items.
+Tell the user: the data root used, the saved profile path (or the draft path), the commit analyzed and whether the working tree was clean, the number of claims per topic and per basis, the files read, whether a context note and reports were used, coverage observations (for example reports that end before the analyzed commit), and the most important `missing` items.

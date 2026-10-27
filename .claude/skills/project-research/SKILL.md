@@ -11,7 +11,9 @@ Never edit the project, its documentation, `vault/notes/`, profiles, existing re
 
 ## Inputs
 
-Arguments: `<project-id> <project-dir> [owner/repo] [vault-dir]`, as in `/project-understanding`. Data root: `data/` in this repository. Run commands from this repository with its virtual environment (`.venv\Scripts\python -m …` on Windows). Below, `PROJECT` stands for `--project-dir <dir> [--github-repo <owner/repo>] [--vault-dir <vault>]`.
+Arguments: `<project-id> <project-dir> [owner/repo] [vault-dir]`, as in `/project-understanding`. Run commands from this repository with its virtual environment (`.venv\Scripts\python -m …` on Windows). Below, `PROJECT` stands for `--project-dir <dir> [--github-repo <owner/repo>] [--vault-dir <vault>]`.
+
+**Data root**, written `<data-root>` below: `data/` in this repository by default (the real personal data). If the user gives another data root, such as a scratchpad copy for a test, use that exact path for **every** `--data-root` in the cycle (start, brief, fetch, check, save and the feedback commands) and read the brief, profile, snapshots and results from it. The profile must be in the same data root. Never mix the real `data/` and a test root in one cycle, and say in your report which root you used.
 
 If the user asks for a review before saving, stop after step 8 and present the draft.
 
@@ -29,13 +31,13 @@ Stop searching when the questions are answered or when more searching is unlikel
 ### 1. Start the cycle and read the brief
 
 ```
-python -m organizador.research start --data-root data --project-id <id>
-python -m organizador.research brief --data-root data --cycle-id <cycle> PROJECT
+python -m organizador.research start --data-root <data-root> --project-id <id>
+python -m organizador.research brief --data-root <data-root> --cycle-id <cycle> PROJECT
 ```
 
-If `brief` reports no profile or a profile that is not current (new commit, or a context note added, removed or changed), stop and tell the user to run `/project-understanding` first.
+If `brief` reports no profile or a profile that is not current (new commit, or a context note added, removed or changed), stop and tell the user to run `/project-understanding` first, saving the new profile into the same data root (for a test root, see that skill's isolated test save).
 
-Read `data/research/<cycle>/brief.json`, the profile `data/profiles/<profile_id>.json` and, if the brief lists one, the context note. Number the profile's claims from 1 in their stored order; drafts cite them by number.
+Read `<data-root>/research/<cycle>/brief.json`, the profile `<data-root>/profiles/<profile_id>.json` and, if the brief lists one, the context note. Number the profile's claims from 1 in their stored order; drafts cite them by number.
 
 ### 2. Decide what to look for
 
@@ -70,7 +72,7 @@ Label each source in its `name`, for example `"Hypothesis documentation (officia
 ### 4. Capture evidence
 
 ```
-python -m organizador.research fetch --data-root data --cycle-id <cycle> <url> [<url> ...]
+python -m organizador.research fetch --data-root <data-root> --cycle-id <cycle> <url> [<url> ...]
 ```
 
 Only HTTPS public pages with server-rendered text work; for GitHub repositories, fetch the raw README (`https://raw.githubusercontent.com/<owner>/<repo>/<branch>/README.md`). If a page cannot be captured, you may still mention it as interpretation, but not as verified.
@@ -79,7 +81,7 @@ Only HTTPS public pages with server-rendered text work; for GitHub repositories,
 
 For each recommendation:
 
-- `verified`: what a source **says**, each with an exact `quote` copied from the snapshot text (`data/research/<cycle>/snapshots/<snap>.json`, field `text`; at least 20 characters) and its `url` (also listed in that source's `evidence_urls`). The `statement` paraphrases the quote and adds nothing. Read the text around the quote: a quote out of context is not support.
+- `verified`: what a source **says**, each with an exact `quote` copied from the snapshot text (`<data-root>/research/<cycle>/snapshots/<snap>.json`, field `text`; at least 20 characters) and its `url` (also listed in that source's `evidence_urls`). The `statement` paraphrases the quote and adds nothing. Read the text around the quote: a quote out of context is not support.
 - `interpretations`: your conclusions, including why it fits the project.
 - `assumptions`: what you take for granted without evidence (effort, compatibility, ...).
 
@@ -93,12 +95,14 @@ A quote that matches only shows where a statement came from; it does not make yo
 
 ### 7. Write the draft
 
-Write `<scratchpad>/research-draft-<cycle>.json` in the format documented at the top of `src/organizador/research/drafts.py`: `cycle_id`, `project_id`, `profile_id` (from the brief), `log`, `references` (one per external project or repository you recommend; GitHub references must be repository roots) and `recommendations`. Optional per recommendation: `interpretations`, `assumptions`, `distinct_from`, `reconsiders`, `new_since`.
+Write `<scratchpad>/research-draft-<cycle>.json` in the format documented at the top of `src/organizador/research/drafts.py`: `cycle_id`, `project_id`, `profile_id` (from the brief), `log`, `references` (one per external project or repository you recommend; GitHub references must be repository roots) and `recommendations`.
+
+A standalone page that is not a project or repository you recommend (a documentation page, a policy, an article, a standard) needs **no reference**: cite it through the recommendation's `sources` (`name`, `url`) and `evidence_urls`, and leave `reference_urls` empty unless the recommendation is about adopting or studying an external project. A recommendation needs at least one external source: a reference, or a source with a URL. Optional per recommendation: `interpretations`, `assumptions`, `distinct_from`, `reconsiders`, `new_since`.
 
 ### 8. Check
 
 ```
-python -m organizador.research check --data-root data --draft <draft> PROJECT
+python -m organizador.research check --data-root <data-root> --draft <draft> PROJECT
 ```
 
 Fix every problem and run it again. When it reports that a proposal **may duplicate** an earlier recommendation, decide honestly:
@@ -114,16 +118,16 @@ Then reread each recommendation: would the user learn something useful and know 
 Unless the user asked for review first:
 
 ```
-python -m organizador.research save --data-root data --draft <draft> PROJECT
+python -m organizador.research save --data-root <data-root> --draft <draft> PROJECT
 ```
 
 A cycle is saved once. Saving creates the references and recommendations and keeps the draft and a result summary in the cycle folder.
 
 ### 10. Report
 
-Tell the user: the cycle ID, the profile used, the questions, how many searches and snapshots were used, the main rejected candidates and why, and each recommendation (title, relationship, verified evidence, interpretation, limitations), or why there were none. Mention how to give feedback:
+Tell the user: the data root used, the cycle ID, the profile used, the questions, how many searches and snapshots were used, the main rejected candidates and why, and each recommendation (title, relationship, verified evidence, interpretation, limitations), or why there were none. Mention how to give feedback:
 
 ```
-python -m organizador.recommendations show --data-root data <rec_id>
-python -m organizador.recommendations feedback --data-root data <rec_id> --decision pending|future|explore|discard [--rating like|dislike] [--notes "..."]
+python -m organizador.recommendations show --data-root <data-root> <rec_id>
+python -m organizador.recommendations feedback --data-root <data-root> <rec_id> --decision pending|future|explore|discard [--rating like|dislike] [--notes "..."]
 ```
